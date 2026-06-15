@@ -1,6 +1,5 @@
-// The 48 nations in the 2026 FIFA World Cup field, with a rough overall strength
-// rating (50-99). Ratings are subjective and tuned for a fun match simulation,
-// not a power ranking. Flags are emoji.
+// The 48 nations of the 2026 FIFA World Cup field (per the official draw), with a
+// rough overall strength rating used by the match simulation. Flags are emoji.
 
 export interface NationalTeam {
   name: string
@@ -9,65 +8,54 @@ export interface NationalTeam {
 }
 
 export const TEAMS: NationalTeam[] = [
-  // Hosts
-  { name: 'United States', flag: '🇺🇸', rating: 78 },
-  { name: 'Mexico', flag: '🇲🇽', rating: 79 },
-  { name: 'Canada', flag: '🇨🇦', rating: 77 },
-
-  // UEFA
-  { name: 'France', flag: '🇫🇷', rating: 92 },
-  { name: 'England', flag: '🏴', rating: 90 },
-  { name: 'Spain', flag: '🇪🇸', rating: 91 },
-  { name: 'Portugal', flag: '🇵🇹', rating: 89 },
-  { name: 'Germany', flag: '🇩🇪', rating: 88 },
-  { name: 'Netherlands', flag: '🇳🇱', rating: 88 },
-  { name: 'Italy', flag: '🇮🇹', rating: 86 },
-  { name: 'Belgium', flag: '🇧🇪', rating: 85 },
-  { name: 'Croatia', flag: '🇭🇷', rating: 84 },
-  { name: 'Switzerland', flag: '🇨🇭', rating: 80 },
-  { name: 'Denmark', flag: '🇩🇰', rating: 81 },
-  { name: 'Austria', flag: '🇦🇹', rating: 80 },
-  { name: 'Norway', flag: '🇳🇴', rating: 82 },
-  { name: 'Turkey', flag: '🇹🇷', rating: 79 },
-  { name: 'Scotland', flag: '🏴', rating: 75 },
-  { name: 'Ukraine', flag: '🇺🇦', rating: 78 },
-  { name: 'Serbia', flag: '🇷🇸', rating: 79 },
-  { name: 'Poland', flag: '🇵🇱', rating: 78 },
-  { name: 'Wales', flag: '🏴', rating: 74 },
-
-  // CONMEBOL
-  { name: 'Argentina', flag: '🇦🇷', rating: 92 },
-  { name: 'Brazil', flag: '🇧🇷', rating: 90 },
+  { name: 'Argentina', flag: '🇦🇷', rating: 89 },
+  { name: 'France', flag: '🇫🇷', rating: 89 },
+  { name: 'Spain', flag: '🇪🇸', rating: 88 },
+  { name: 'Brazil', flag: '🇧🇷', rating: 88 },
+  { name: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', rating: 88 },
+  { name: 'Portugal', flag: '🇵🇹', rating: 86 },
+  { name: 'Netherlands', flag: '🇳🇱', rating: 85 },
+  { name: 'Germany', flag: '🇩🇪', rating: 85 },
+  { name: 'Belgium', flag: '🇧🇪', rating: 84 },
   { name: 'Uruguay', flag: '🇺🇾', rating: 84 },
+  { name: 'Croatia', flag: '🇭🇷', rating: 83 },
   { name: 'Colombia', flag: '🇨🇴', rating: 83 },
-  { name: 'Ecuador', flag: '🇪🇨', rating: 79 },
-  { name: 'Paraguay', flag: '🇵🇾', rating: 74 },
-
-  // CAF
-  { name: 'Morocco', flag: '🇲🇦', rating: 83 },
+  { name: 'Morocco', flag: '🇲🇦', rating: 82 },
+  { name: 'Norway', flag: '🇳🇴', rating: 82 },
+  { name: 'Switzerland', flag: '🇨🇭', rating: 81 },
   { name: 'Senegal', flag: '🇸🇳', rating: 81 },
-  { name: 'Nigeria', flag: '🇳🇬', rating: 80 },
-  { name: 'Ivory Coast', flag: '🇨🇮', rating: 78 },
-  { name: 'Egypt', flag: '🇪🇬', rating: 78 },
-  { name: 'Algeria', flag: '🇩🇿', rating: 77 },
-  { name: 'Ghana', flag: '🇬🇭', rating: 76 },
-  { name: 'Cameroon', flag: '🇨🇲', rating: 75 },
-  { name: 'South Africa', flag: '🇿🇦', rating: 72 },
-
-  // AFC
   { name: 'Japan', flag: '🇯🇵', rating: 81 },
+  { name: 'Austria', flag: '🇦🇹', rating: 81 },
+  { name: 'Mexico', flag: '🇲🇽', rating: 80 },
+  { name: 'United States', flag: '🇺🇸', rating: 80 },
+  { name: 'Ecuador', flag: '🇪🇨', rating: 80 },
+  { name: 'Sweden', flag: '🇸🇪', rating: 80 },
   { name: 'South Korea', flag: '🇰🇷', rating: 80 },
-  { name: 'Iran', flag: '🇮🇷', rating: 77 },
+  { name: 'Bosnia and Herzegovina', flag: '🇧🇦', rating: 80 },
+  { name: 'Turkey', flag: '🇹🇷', rating: 80 },
+  { name: 'Czech Republic', flag: '🇨🇿', rating: 79 },
+  { name: 'Ivory Coast', flag: '🇨🇮', rating: 79 },
+  { name: 'Egypt', flag: '🇪🇬', rating: 79 },
+  { name: 'Algeria', flag: '🇩🇿', rating: 79 },
+  { name: 'Canada', flag: '🇨🇦', rating: 78 },
+  { name: 'Iran', flag: '🇮🇷', rating: 78 },
+  { name: 'Scotland', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', rating: 77 },
   { name: 'Australia', flag: '🇦🇺', rating: 76 },
-  { name: 'Saudi Arabia', flag: '🇸🇦', rating: 73 },
-  { name: 'Qatar', flag: '🇶🇦', rating: 71 },
-  { name: 'Uzbekistan', flag: '🇺🇿', rating: 70 },
-  { name: 'Jordan', flag: '🇯🇴', rating: 68 },
-
-  // CONCACAF / OFC
-  { name: 'Costa Rica', flag: '🇨🇷', rating: 72 },
-  { name: 'Panama', flag: '🇵🇦', rating: 71 },
-  { name: 'New Zealand', flag: '🇳🇿', rating: 68 },
+  { name: 'Tunisia', flag: '🇹🇳', rating: 76 },
+  { name: 'DR Congo', flag: '🇨🇩', rating: 76 },
+  { name: 'Ghana', flag: '🇬🇭', rating: 76 },
+  { name: 'Paraguay', flag: '🇵🇾', rating: 75 },
+  { name: 'South Africa', flag: '🇿🇦', rating: 75 },
+  { name: 'Saudi Arabia', flag: '🇸🇦', rating: 74 },
+  { name: 'Cape Verde', flag: '🇨🇻', rating: 73 },
+  { name: 'Qatar', flag: '🇶🇦', rating: 73 },
+  { name: 'Uzbekistan', flag: '🇺🇿', rating: 73 },
+  { name: 'Panama', flag: '🇵🇦', rating: 73 },
+  { name: 'Iraq', flag: '🇮🇶', rating: 73 },
+  { name: 'Jordan', flag: '🇯🇴', rating: 72 },
+  { name: 'Curaçao', flag: '🇨🇼', rating: 71 },
+  { name: 'Haiti', flag: '🇭🇹', rating: 71 },
+  { name: 'New Zealand', flag: '🇳🇿', rating: 70 },
 ]
 
 export const teamByName = (name: string): NationalTeam | undefined =>

@@ -354,20 +354,23 @@ function Tournament(props: {
     <div className="screen tournament">
       <div className="kicker">The road to the final</div>
       <div className="match-list">
-        {results.map((r, i) => {
-          if (i >= revealed) {
-            const upcoming = i === revealed && canReveal
-            return (
-              <div className={`match pending ${upcoming ? 'next' : ''}`} key={i}>
-                <span className="m-round">{ROUNDS[i].name}</span>
-                <span className="m-vs">
-                  {upcoming ? `vs ${opponents[i].flag} ${opponents[i].name}` : '🔒'}
-                </span>
-                <span className="m-score">—</span>
-              </div>
-            )
+        {ROUNDS.map((round, i) => {
+          const result = results[i]
+          // Always render all 8 rounds so the row count never reveals how far
+          // you'll get. A round is only shown once it has been revealed.
+          if (i < revealed && result) {
+            return <MatchRow key={i} r={result} />
           }
-          return <MatchRow key={i} r={r} />
+          const upcoming = i === revealed && canReveal
+          return (
+            <div className={`match pending ${upcoming ? 'next' : ''}`} key={i}>
+              <span className="m-round">{round.name}</span>
+              <span className="m-vs">
+                {upcoming ? `vs ${opponents[i].flag} ${opponents[i].name}` : '🔒'}
+              </span>
+              <span className="m-score">—</span>
+            </div>
+          )
         })}
       </div>
 
