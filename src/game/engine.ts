@@ -587,4 +587,71 @@ export function simulateWorldCup(): WorldCupResult {
   return { champion: round[0], runnerUp, finalScore, finalPens }
 }
 
+// ── Bookies' prediction ─────────────────────────────────────────────
+// Monte-Carlo the player's exact squad through many tournaments to estimate
+// how far they're likely to get and their odds of winning it all.
+
+export interface Prediction {
+  winPct: number // chance of lifting the trophy
+  koPct: number // chance of reaching the knockouts
+  tipStage: string // deepest stage they're more likely than not to reach
+  oddsToWin: string // fractional, e.g. "12/1"
+}
+
+const STAGE_DEPTH: Record<string, number> = {
+  'Group Stage': 0,
+  'Round of 32': 1,
+  'Round of 16': 2,
+  'Quarter-Final': 3,
+  'Semi-Final': 4,
+  'Final': 5,
+  Champions: 6,
+}
+const STAGE_LABEL = [
+  'Group Stage',
+  'Round of 32',
+  'Round of 16',
+  'Quarter-Final',
+  'Semi-Final',
+  'Final',
+  'Champions',
+]
+
+function toOdds(p: number): string {
+  if (p <= 0.002) return '500/1'
+  const frac = 1 / p - 1
+  let r: number
+  if (frac >= 20) r = Math.round(frac / 10) * 10
+  else if (frac >= 6) r = Math.round(frac / 2) * 2
+  else r = Math.max(1, Math.round(frac))
+  return `${r}/1`
+}
+
+export function predictRun(
+  strength: Strength,
+  formation: Formation,
+  squad: Player[],
+  samples = 1000,
+): Prediction {
+  const depths: number[] = []
+  let win = 0
+  for (let i = 0; i < samples; i++) {
+    const r = buildTournament(strength, formation, squad, setupTournament())
+    const stage = r.champion ? 'Champions' : (r.eliminatedAt ?? 'Group Stage')
+    depths.push(STAGE_DEPTH[stage])
+    if (r.champion) win++
+  }
+  const reach = (d: number) => depths.filter((x) => x >= d).length / samples
+  // tip = deepest stage they're more likely than not (>=50%) to reach
+  let tip = 0
+  for (let d = 1; d <= 6; d++) if (reach(d) >= 0.5) tip = d
+  const winPct = win / samples
+  return {
+    winPct,
+    koPct: reach(1),
+    tipStage: STAGE_LABEL[tip],
+    oddsToWin: toOdds(winPct),
+  }
+}
+
 export { PLAYERS, type Player, type Position, type NationalTeam }

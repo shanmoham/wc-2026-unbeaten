@@ -10,6 +10,7 @@ import {
   squadStrength,
   buildTournament,
   simulateWorldCup,
+  predictRun,
   type Player,
   type Formation,
   type DraftDraw,
@@ -20,6 +21,7 @@ import type {
   QualifiedAs,
   GroupRow,
   WorldCupResult,
+  Prediction,
 } from './game/engine'
 import type { NationalTeam } from './data/teams'
 import type { Position } from './data/players'
@@ -52,6 +54,11 @@ export default function App() {
   const takenIds = useMemo(() => new Set(squad.map((p) => p.id)), [squad])
   const strength = useMemo(() => squadStrength(squad), [squad])
   const remaining = useMemo(() => remainingNeed(formation, squad), [formation, squad])
+  // bookies' verdict — only computed once the XI is complete (on the review screen)
+  const prediction = useMemo<Prediction | null>(
+    () => (squad.length === SQUAD_SIZE ? predictRun(strength, formation, squad) : null),
+    [squad, formation, strength],
+  )
 
   // ── flow helpers ─────────────────────────────────────────────
   function chooseFormation(f: Formation) {
@@ -127,6 +134,7 @@ export default function App() {
             formation={formation}
             squad={squad}
             strength={strength}
+            prediction={prediction}
             onStart={beginTournament}
           />
         )}
@@ -227,6 +235,51 @@ function MiniPitch({ formation }: { formation: Formation }) {
       ))}
     </div>
   )
+}
+
+function Bookies({ prediction }: { prediction: Prediction }) {
+  const [title, sub] = verdict(prediction.tipStage)
+  const pct = (x: number) => `${Math.round(x * 100)}%`
+  return (
+    <div className="bookies">
+      <div className="bk-head">📊 The bookies' verdict</div>
+      <div className="bk-verdict">{title}</div>
+      <div className="bk-sub">{sub}</div>
+      <div className="bk-stats">
+        <div className="bk-stat">
+          <strong>{prediction.oddsToWin}</strong>
+          <span>to win it</span>
+        </div>
+        <div className="bk-stat">
+          <strong>{pct(prediction.koPct)}</strong>
+          <span>reach knockouts</span>
+        </div>
+        <div className="bk-stat">
+          <strong>{pct(prediction.winPct)}</strong>
+          <span>lift the trophy</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function verdict(stage: string): [string, string] {
+  switch (stage) {
+    case 'Champions':
+      return ['Tournament favourites 🏆', 'The bookies make you the team to beat.']
+    case 'Final':
+      return ['Genuine contenders', 'Tipped to go all the way to the final.']
+    case 'Semi-Final':
+      return ['Serious dark horses', 'Fancied for a run to the semi-finals.']
+    case 'Quarter-Final':
+      return ['Tipped for a deep run', 'Backed to reach the quarter-finals.']
+    case 'Round of 16':
+      return ['Plucky underdogs', 'Expected to reach the last 16.']
+    case 'Round of 32':
+      return ['Rank outsiders', 'Tipped to fall in the Round of 32.']
+    default:
+      return ['No-hopers', 'Tipped to crash out in the group stage.']
+  }
 }
 
 function Meter({ label, value, accent }: { label: string; value: number; accent: string }) {
@@ -338,11 +391,13 @@ function Review({
   formation,
   squad,
   strength,
+  prediction,
   onStart,
 }: {
   formation: Formation
   squad: Player[]
   strength: { overall: number; attack: number; defense: number }
+  prediction: Prediction | null
   onStart: () => void
 }) {
   const lines = POS_LABELS.slice()
@@ -361,6 +416,8 @@ function Review({
         <Meter label="ATK" value={(strength.attack - 45) / 50} accent="var(--green)" />
         <Meter label="DEF" value={(strength.defense - 45) / 50} accent="var(--gold)" />
       </div>
+
+      {prediction && <Bookies prediction={prediction} />}
 
       <div className="pitch">
         {lines.map((line) => (
