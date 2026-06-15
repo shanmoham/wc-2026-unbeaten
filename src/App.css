@@ -154,6 +154,112 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* ── Formation select ── */
+.formation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.formation-card {
+  background: linear-gradient(165deg, var(--card-hi), var(--card));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 12px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.formation-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--gold);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+.fc-name {
+  font-weight: 900;
+  font-size: 1.3rem;
+  letter-spacing: 0.02em;
+}
+.fc-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+  min-height: 2.6em;
+}
+.mini-pitch {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 7px;
+  background: linear-gradient(160deg, #14583c, #0f4631);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 6px;
+  height: 92px;
+}
+.mini-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+}
+.dot-fwd {
+  background: var(--red);
+}
+.dot-mid {
+  background: var(--gold);
+}
+.dot-def {
+  background: var(--green);
+}
+.dot-gk {
+  background: #cdd6df;
+}
+.fc-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.meter-label {
+  font-size: 0.58rem;
+  font-weight: 800;
+  color: var(--muted);
+  width: 24px;
+  text-align: left;
+}
+.meter-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.formation-chip {
+  background: var(--gold) !important;
+  color: #1a1205 !important;
+  border-color: var(--gold) !important;
+  font-weight: 900;
+}
+
 /* ── Draft ── */
 .draft-head {
   display: flex;
@@ -528,6 +634,12 @@
   display: flex;
   gap: 10px;
   margin-top: 8px;
+}
+
+@media (max-width: 480px) {
+  .formation-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 420px) {
