@@ -1036,6 +1036,46 @@
 .rg-opp {
   font-size: 1rem;
 }
+.vs-bookies {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  text-align: left;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+.vs-bookies.over {
+  border-color: rgba(47, 208, 122, 0.45);
+  background: linear-gradient(90deg, rgba(47, 208, 122, 0.14), var(--card));
+}
+.vs-bookies.under {
+  border-color: rgba(255, 93, 93, 0.45);
+  background: linear-gradient(90deg, rgba(255, 93, 93, 0.14), var(--card));
+}
+.vs-bookies.met {
+  border-color: rgba(245, 197, 66, 0.45);
+  background: linear-gradient(90deg, rgba(245, 197, 66, 0.14), var(--card));
+}
+.vsb-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.vs-bookies.over strong {
+  color: var(--green);
+}
+.vs-bookies.under strong {
+  color: var(--red);
+}
+.vs-bookies.met strong {
+  color: var(--gold);
+}
+
 .wc-winner {
   width: 100%;
   max-width: 420px;

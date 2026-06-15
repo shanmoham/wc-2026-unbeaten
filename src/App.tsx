@@ -158,6 +158,7 @@ export default function App() {
             squad={squad}
             rating={strength.overall}
             worldCup={worldCup}
+            prediction={prediction}
             onAgain={playAgain}
           />
         )}
@@ -261,6 +262,75 @@ function Bookies({ prediction }: { prediction: Prediction }) {
       </div>
     </div>
   )
+}
+
+const STAGE_DEPTH: Record<string, number> = {
+  'Group Stage': 0,
+  'Round of 32': 1,
+  'Round of 16': 2,
+  'Quarter-Final': 3,
+  'Semi-Final': 4,
+  Final: 5,
+  Champions: 6,
+}
+
+function VsBookies({ result, prediction }: { result: TournamentResult; prediction: Prediction }) {
+  const actual = result.champion ? 'Champions' : result.eliminatedAt ?? 'Group Stage'
+  const ad = STAGE_DEPTH[actual]
+  const td = STAGE_DEPTH[prediction.tipStage]
+  const cls = ad > td ? 'over' : ad < td ? 'under' : 'met'
+  const icon = ad > td ? '📈' : ad < td ? '📉' : '🎯'
+  const headline =
+    ad > td ? 'Beat the bookies' : ad < td ? 'Below expectations' : 'Bang on the money'
+  return (
+    <div className={`vs-bookies ${cls}`}>
+      <span className="vsb-icon">{icon}</span>
+      <span className="vsb-text">
+        <strong>{headline}.</strong> Tipped for {tipPhrase(prediction.tipStage)} — you{' '}
+        {actualPhrase(result)}.
+      </span>
+    </div>
+  )
+}
+
+function tipPhrase(stage: string): string {
+  switch (stage) {
+    case 'Champions':
+      return 'the title'
+    case 'Final':
+      return 'the final'
+    case 'Semi-Final':
+      return 'the semi-finals'
+    case 'Quarter-Final':
+      return 'the quarter-finals'
+    case 'Round of 16':
+      return 'the round of 16'
+    case 'Round of 32':
+      return 'the round of 32'
+    default:
+      return 'a group-stage exit'
+  }
+}
+
+function actualPhrase(result: TournamentResult): string {
+  if (result.perfect) return 'won it unbeaten'
+  if (result.champion) return 'lifted the trophy'
+  switch (result.eliminatedAt) {
+    case 'Final':
+      return 'lost in the final'
+    case 'Group Stage':
+      return 'went out in the group stage'
+    case 'Round of 32':
+      return 'went out in the round of 32'
+    case 'Round of 16':
+      return 'went out in the round of 16'
+    case 'Quarter-Final':
+      return 'went out in the quarter-finals'
+    case 'Semi-Final':
+      return 'went out in the semi-finals'
+    default:
+      return 'were knocked out'
+  }
 }
 
 function verdict(stage: string): [string, string] {
@@ -626,6 +696,7 @@ function Result({
   squad,
   rating,
   worldCup,
+  prediction,
   onAgain,
 }: {
   result: TournamentResult
@@ -634,6 +705,7 @@ function Result({
   squad: Player[]
   rating: number
   worldCup: WorldCupResult | null
+  prediction: Prediction | null
   onAgain: () => void
 }) {
   const wins = result.results.filter((r) => r.outcome === 'win').length
@@ -669,6 +741,8 @@ function Result({
       <div className={`result-emoji ${result.champion ? 'spin' : ''}`}>{emoji}</div>
       <h1 className={`title ${result.champion ? 'gold' : 'fail'}`}>{headline}</h1>
       <p className="tagline">{sub}</p>
+
+      {prediction && <VsBookies result={result} prediction={prediction} />}
 
       <div className="result-grid">
         {result.results.map((r, i) => (
