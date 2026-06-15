@@ -264,6 +264,9 @@ function teamGoals(rA: number, rB: number): [number, number] {
 
 interface Standing {
   key: string
+  w: number
+  d: number
+  l: number
   pts: number
   gf: number
   ga: number
@@ -272,24 +275,57 @@ interface Standing {
 
 export type QualifiedAs = 'group winners' | 'runners-up' | 'best third'
 
+/** A row in the final group table, ready to render. */
+export interface GroupRow {
+  team: string
+  flag: string
+  w: number
+  d: number
+  l: number
+  gf: number
+  ga: number
+  gd: number
+  pts: number
+  me: boolean
+}
+
 export interface GroupOutcome {
   standing: number // 1-4
   qualified: boolean
   qualifiedAs: QualifiedAs | null
+  table: GroupRow[]
 }
+
+const newStanding = (key: string): Standing => ({
+  key,
+  w: 0,
+  d: 0,
+  l: 0,
+  pts: 0,
+  gf: 0,
+  ga: 0,
+  gd: 0,
+})
 
 const addResult = (s: Standing, gf: number, ga: number) => {
   s.gf += gf
   s.ga += ga
-  if (gf > ga) s.pts += 3
-  else if (gf === ga) s.pts += 1
+  if (gf > ga) {
+    s.w++
+    s.pts += 3
+  } else if (gf === ga) {
+    s.d++
+    s.pts += 1
+  } else {
+    s.l++
+  }
 }
 
 /** Build the 4-team table from the player's 3 matches plus the 3 games among
  *  the other group teams, then decide top-2 / best-third qualification. */
 function resolveGroup(myMatches: MatchResult[], foes: NationalTeam[]): GroupOutcome {
-  const me: Standing = { key: 'me', pts: 0, gf: 0, ga: 0, gd: 0 }
-  const opp: Standing[] = foes.map((_, i) => ({ key: `o${i}`, pts: 0, gf: 0, ga: 0, gd: 0 }))
+  const me = newStanding('me')
+  const opp = foes.map((_, i) => newStanding(`o${i}`))
 
   myMatches.forEach((m, i) => {
     addResult(me, m.myGoals, m.oppGoals)
@@ -301,26 +337,47 @@ function resolveGroup(myMatches: MatchResult[], foes: NationalTeam[]): GroupOutc
     addResult(opp[b], gb, ga)
   }
 
-  const table = [me, ...opp]
-  table.forEach((s) => (s.gd = s.gf - s.ga))
-  table.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
-  const standing = table.findIndex((s) => s.key === 'me') + 1
+  const standings = [me, ...opp]
+  standings.forEach((s) => (s.gd = s.gf - s.ga))
+  standings.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
+  const standing = standings.findIndex((s) => s.key === 'me') + 1
+
+  const table: GroupRow[] = standings.map((s) => {
+    const foe = s.key === 'me' ? null : foes[Number(s.key.slice(1))]
+    return {
+      team: foe ? foe.name : 'Your XI',
+      flag: foe ? foe.flag : '⭐',
+      w: s.w,
+      d: s.d,
+      l: s.l,
+      gf: s.gf,
+      ga: s.ga,
+      gd: s.gd,
+      pts: s.pts,
+      me: s.key === 'me',
+    }
+  })
 
   if (standing <= 2) {
-    return { standing, qualified: true, qualifiedAs: standing === 1 ? 'group winners' : 'runners-up' }
+    return {
+      standing,
+      qualified: true,
+      qualifiedAs: standing === 1 ? 'group winners' : 'runners-up',
+      table,
+    }
   }
-  if (standing === 4) return { standing, qualified: false, qualifiedAs: null }
+  if (standing === 4) return { standing, qualified: false, qualifiedAs: null, table }
 
   // 3rd place: advance only if among the 8 best thirds. Model the other 11
   // groups' third-placed teams and count how many finish above us.
-  const myThird = table[2]
+  const myThird = standings[2]
   let better = 0
   for (let i = 0; i < 11; i++) {
     const t = randomThird()
     if (t.pts > myThird.pts || (t.pts === myThird.pts && t.gd > myThird.gd)) better++
   }
   const qualified = better < 8
-  return { standing: 3, qualified, qualifiedAs: qualified ? 'best third' : null }
+  return { standing: 3, qualified, qualifiedAs: qualified ? 'best third' : null, table }
 }
 
 /** A plausible third-placed team's points + goal difference. */
@@ -337,6 +394,7 @@ export interface TournamentResult {
   groupName: string
   groupStanding: number
   qualifiedAs: QualifiedAs | null
+  groupTable: GroupRow[]
   champion: boolean
   perfect: boolean // won every match in normal time, no draws/pens
   eliminatedAt?: string
@@ -368,6 +426,7 @@ export function buildTournament(
     groupName,
     groupStanding: group.standing,
     qualifiedAs: group.qualifiedAs,
+    groupTable: group.table,
   }
 
   if (!group.qualified) {

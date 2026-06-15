@@ -9,7 +9,7 @@ import {
   type Player,
   type Formation,
 } from './game/engine'
-import type { MatchResult, TournamentResult, QualifiedAs } from './game/engine'
+import type { MatchResult, TournamentResult, QualifiedAs, GroupRow } from './game/engine'
 import type { NationalTeam } from './data/teams'
 import './App.css'
 
@@ -126,6 +126,7 @@ export default function App() {
           groupName={groupName}
           qualifiedAs={tournament.qualifiedAs}
           groupStanding={tournament.groupStanding}
+          groupTable={tournament.groupTable}
           onReveal={revealNext}
         />
       )}
@@ -350,9 +351,11 @@ function Tournament(props: {
   groupName: string
   qualifiedAs: QualifiedAs | null
   groupStanding: number
+  groupTable: GroupRow[]
   onReveal: () => void
 }) {
-  const { results, revealed, opponents, groupName, qualifiedAs, onReveal } = props
+  const { results, revealed, opponents, groupName, qualifiedAs, groupStanding, groupTable, onReveal } =
+    props
   const done = revealed >= results.length
   const lastEliminated = revealed > 0 && !results[revealed - 1].advanced
   const canReveal = !done && !lastEliminated
@@ -368,6 +371,14 @@ function Tournament(props: {
         <div className="qual-banner">
           ✓ Through to the knockouts as <strong>{qualifiedAs}</strong>
         </div>
+      )}
+      {groupDone && (
+        <GroupTable
+          title={groupName}
+          rows={groupTable}
+          standing={groupStanding}
+          qualifiedAs={qualifiedAs}
+        />
       )}
       <div className="match-list">
         {ROUNDS.map((round, i) => {
@@ -412,6 +423,53 @@ function MatchRow({ r }: { r: MatchResult }) {
         {r.pens && <em className="pens"> ({r.pens.me}–{r.pens.opp} pens)</em>}
       </span>
       <span className="m-tag">{tagFor(r)}</span>
+    </div>
+  )
+}
+
+function GroupTable({
+  title,
+  rows,
+  standing,
+  qualifiedAs,
+}: {
+  title: string
+  rows: GroupRow[]
+  standing: number
+  qualifiedAs: QualifiedAs | null
+}) {
+  const thirdQualified = standing === 3 && qualifiedAs === 'best third'
+  return (
+    <div className="group-table">
+      <div className="gt-row gt-head">
+        <span className="gt-pos">#</span>
+        <span className="gt-team">{title}</span>
+        <span>W</span>
+        <span>D</span>
+        <span>L</span>
+        <span className="gt-gd">GD</span>
+        <span className="gt-pts">Pts</span>
+      </div>
+      {rows.map((r, i) => {
+        const through = i < 2 || (i === 2 && thirdQualified)
+        return (
+          <div
+            key={r.team}
+            className={`gt-row ${r.me ? 'me' : ''} ${through ? 'through' : ''}`}
+          >
+            <span className="gt-pos">{i + 1}</span>
+            <span className="gt-team">
+              {r.flag} {r.team}
+              {i === 2 && thirdQualified && <em className="gt-note"> best 3rd</em>}
+            </span>
+            <span>{r.w}</span>
+            <span>{r.d}</span>
+            <span>{r.l}</span>
+            <span className="gt-gd">{r.gd > 0 ? `+${r.gd}` : r.gd}</span>
+            <span className="gt-pts">{r.pts}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -484,6 +542,13 @@ function Result({
           </div>
         ))}
       </div>
+
+      <GroupTable
+        title={groupName}
+        rows={result.groupTable}
+        standing={result.groupStanding}
+        qualifiedAs={result.qualifiedAs}
+      />
 
       <div className="squad-mini">
         <span className="mini-chip formation-chip">{formation.name}</span>

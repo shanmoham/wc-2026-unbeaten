@@ -524,6 +524,78 @@
   color: var(--green);
   text-transform: capitalize;
 }
+.group-table {
+  margin: 10px 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  width: 100%;
+  max-width: 460px;
+}
+.gt-row {
+  display: grid;
+  grid-template-columns: 22px 1fr 20px 20px 20px 38px 32px;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--line);
+}
+.gt-row:first-child {
+  border-top: none;
+}
+.gt-head {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gt-head .gt-team {
+  text-transform: none;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+}
+.gt-row > span:not(.gt-team):not(.gt-pos) {
+  text-align: center;
+}
+.gt-pos {
+  color: var(--muted);
+  font-weight: 700;
+  text-align: center;
+}
+.gt-team {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.gt-pts {
+  font-weight: 900;
+}
+.gt-row.through {
+  background: linear-gradient(90deg, rgba(47, 208, 122, 0.12), transparent);
+}
+.gt-row.through .gt-pos {
+  color: var(--green);
+}
+.gt-row.me {
+  background: linear-gradient(90deg, rgba(245, 197, 66, 0.18), rgba(245, 197, 66, 0.04));
+  box-shadow: inset 2px 0 0 var(--gold);
+  font-weight: 800;
+}
+.gt-row.me.through {
+  background: linear-gradient(90deg, rgba(245, 197, 66, 0.2), rgba(47, 208, 122, 0.08));
+}
+.gt-note {
+  font-size: 0.62rem;
+  color: var(--green);
+  font-weight: 800;
+  font-style: normal;
+}
+
 .match-list {
   display: flex;
   flex-direction: column;
