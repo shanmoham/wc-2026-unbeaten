@@ -1,28 +1,27 @@
 import { useMemo, useState } from 'react'
 import {
-  FORMATIONS,
   ROUNDS,
-  draftChoices,
+  SQUAD_SIZE,
+  draftCountry,
   setupTournament,
   squadStrength,
+  squadShape,
   buildTournament,
   type Player,
-  type Formation,
+  type DraftDraw,
 } from './game/engine'
 import type { MatchResult, TournamentResult, QualifiedAs, GroupRow } from './game/engine'
 import type { NationalTeam } from './data/teams'
 import './App.css'
 
-type Screen = 'title' | 'formation' | 'draft' | 'review' | 'tournament' | 'result'
+type Screen = 'title' | 'draft' | 'review' | 'tournament' | 'result'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('title')
-  const [formation, setFormation] = useState<Formation>(FORMATIONS[0])
 
-  // draft state — squad is parallel to formation.slots
-  const [slotIndex, setSlotIndex] = useState(0)
-  const [squad, setSquad] = useState<(Player | null)[]>([])
-  const [choices, setChoices] = useState<Player[]>([])
+  // draft state — squad is the list of players picked so far (any positions)
+  const [squad, setSquad] = useState<Player[]>([])
+  const [draw, setDraw] = useState<DraftDraw | null>(null)
 
   // tournament state
   const [opponents, setOpponents] = useState<NationalTeam[]>([])
@@ -30,47 +29,36 @@ export default function App() {
   const [tournament, setTournament] = useState<TournamentResult | null>(null)
   const [revealed, setRevealed] = useState(0)
 
-  const takenIds = useMemo(
-    () => new Set(squad.filter(Boolean).map((p) => (p as Player).id)),
-    [squad],
-  )
-  const picked = squad.filter(Boolean) as Player[]
-  const strength = useMemo(() => squadStrength(picked), [picked])
+  const takenIds = useMemo(() => new Set(squad.map((p) => p.id)), [squad])
+  const strength = useMemo(() => squadStrength(squad), [squad])
+  const shape = useMemo(() => squadShape(squad), [squad])
 
   // ── flow helpers ─────────────────────────────────────────────
-  function chooseFormation(f: Formation) {
-    setFormation(f)
-    const fresh = f.slots.map(() => null)
-    setSquad(fresh)
-    setSlotIndex(0)
-    setChoices(draftChoices(f.slots[0].pos, new Set()))
+  function startDraft() {
+    setSquad([])
+    setDraw(draftCountry(new Set()))
     setScreen('draft')
   }
 
   function choose(player: Player) {
-    const next = [...squad]
-    next[slotIndex] = player
+    const next = [...squad, player]
     setSquad(next)
-
-    const nextIndex = slotIndex + 1
-    if (nextIndex >= formation.slots.length) {
+    if (next.length >= SQUAD_SIZE) {
       setScreen('review')
       return
     }
-    const taken = new Set(next.filter(Boolean).map((p) => (p as Player).id))
-    setSlotIndex(nextIndex)
-    setChoices(draftChoices(formation.slots[nextIndex].pos, taken))
+    setDraw(draftCountry(new Set(next.map((p) => p.id))))
   }
 
   function reroll() {
-    setChoices(draftChoices(formation.slots[slotIndex].pos, takenIds))
+    setDraw(draftCountry(takenIds))
   }
 
   function beginTournament() {
     const setup = setupTournament()
     setOpponents(setup.opponents)
     setGroupName(setup.groupName)
-    setTournament(buildTournament(strength, formation, setup))
+    setTournament(buildTournament(strength, setup))
     setRevealed(0)
     setScreen('tournament')
   }
@@ -88,7 +76,7 @@ export default function App() {
   function playAgain() {
     setScreen('title')
     setSquad([])
-    setSlotIndex(0)
+    setDraw(null)
     setTournament(null)
     setRevealed(0)
   }
@@ -97,49 +85,46 @@ export default function App() {
     <div className="app">
       <div className="bg-grad" />
       <div className="device">
-      {screen === 'title' && <Title onStart={() => setScreen('formation')} />}
-      {screen === 'formation' && <FormationSelect onPick={chooseFormation} />}
-      {screen === 'draft' && (
-        <Draft
-          formation={formation}
-          slotIndex={slotIndex}
-          choices={choices}
-          squad={squad}
-          rating={strength.overall}
-          onChoose={choose}
-          onReroll={reroll}
-        />
-      )}
-      {screen === 'review' && (
-        <Review
-          formation={formation}
-          squad={squad}
-          rating={strength.overall}
-          onStart={beginTournament}
-        />
-      )}
-      {screen === 'tournament' && tournament && (
-        <Tournament
-          results={tournament.results}
-          revealed={revealed}
-          opponents={opponents}
-          groupName={groupName}
-          qualifiedAs={tournament.qualifiedAs}
-          groupStanding={tournament.groupStanding}
-          groupTable={tournament.groupTable}
-          onReveal={revealNext}
-        />
-      )}
-      {screen === 'result' && tournament && (
-        <Result
-          result={tournament}
-          formation={formation}
-          groupName={groupName}
-          squad={picked}
-          rating={strength.overall}
-          onAgain={playAgain}
-        />
-      )}
+        {screen === 'title' && <Title onStart={startDraft} />}
+        {screen === 'draft' && draw && (
+          <Draft
+            draw={draw}
+            squad={squad}
+            rating={strength.overall}
+            onChoose={choose}
+            onReroll={reroll}
+          />
+        )}
+        {screen === 'review' && (
+          <Review
+            squad={squad}
+            strength={strength}
+            shape={shape}
+            onStart={beginTournament}
+          />
+        )}
+        {screen === 'tournament' && tournament && (
+          <Tournament
+            results={tournament.results}
+            revealed={revealed}
+            opponents={opponents}
+            groupName={groupName}
+            qualifiedAs={tournament.qualifiedAs}
+            groupStanding={tournament.groupStanding}
+            groupTable={tournament.groupTable}
+            onReveal={revealNext}
+          />
+        )}
+        {screen === 'result' && tournament && (
+          <Result
+            result={tournament}
+            shape={shape.label}
+            groupName={groupName}
+            squad={squad}
+            rating={strength.overall}
+            onAgain={playAgain}
+          />
+        )}
       </div>
     </div>
   )
@@ -155,59 +140,145 @@ function Title({ onStart }: { onStart: () => void }) {
       </h1>
       <div className="year">2026 · WORLD CUP</div>
       <p className="tagline">
-        Pick a formation, draft your XI from the world's best, then survive the
-        group stage and five knockout rounds.{' '}
+        Each pick, you're handed a country — draft any one of its players. Build
+        an XI of 11, then survive the group stage and five knockout rounds.{' '}
         <strong>Win all 8 — go unbeaten.</strong>
       </p>
       <button className="btn primary big" onClick={onStart}>
         Start the draft
       </button>
-      <div className="footnote">48 nations · 6 formations · one loss and you're out</div>
+      <div className="footnote">48 nations · build any XI · one loss and you're out</div>
     </div>
   )
 }
 
-// ── Formation select ────────────────────────────────────────────────
-function FormationSelect({ onPick }: { onPick: (f: Formation) => void }) {
+// ── Draft ───────────────────────────────────────────────────────────
+function Draft(props: {
+  draw: DraftDraw
+  squad: Player[]
+  rating: number
+  onChoose: (p: Player) => void
+  onReroll: () => void
+}) {
+  const { draw, squad, rating } = props
+  const picked = squad.length
+  const groups: { pos: string; label: string }[] = [
+    { pos: 'GK', label: 'Goalkeepers' },
+    { pos: 'DEF', label: 'Defenders' },
+    { pos: 'MID', label: 'Midfielders' },
+    { pos: 'FWD', label: 'Forwards' },
+  ]
   return (
-    <div className="screen">
-      <div className="kicker">Step 1 of 2</div>
-      <h2 className="slot-title">
-        Choose your <span className="gold">formation</span>
-      </h2>
-      <p className="tagline" style={{ margin: '6px 0 18px' }}>
-        Shape changes who you draft — and how you play. More attackers score
-        more but concede more.
-      </p>
-      <div className="formation-grid">
-        {FORMATIONS.map((f) => (
-          <button key={f.id} className="formation-card" onClick={() => onPick(f)}>
-            <div className="fc-head">
-              <span className="fc-name">{f.name}</span>
+    <div className="screen draft">
+      <div className="draft-head">
+        <div>
+          <div className="kicker">Pick {picked + 1} of {SQUAD_SIZE}</div>
+          <h2 className="slot-title">
+            <span className="draw-flag">{draw.team.flag}</span> {draw.team.name}
+          </h2>
+        </div>
+        <div className="rating-chip">
+          <span>Squad</span>
+          <strong>{rating ? rating.toFixed(1) : '—'}</strong>
+        </div>
+      </div>
+
+      <div className="progress">
+        <div className="progress-bar" style={{ width: `${(picked / SQUAD_SIZE) * 100}%` }} />
+      </div>
+
+      <div className="pick-bar">
+        <span className="pick-prompt">Pick any {draw.team.name} player</span>
+        <button className="btn ghost small" onClick={props.onReroll}>
+          🎲 New country
+        </button>
+      </div>
+
+      <div className="pick-list">
+        {groups.map(({ pos, label }) => {
+          const ps = draw.players.filter((p) => p.pos === pos)
+          if (!ps.length) return null
+          return (
+            <div className="pick-group" key={pos}>
+              <div className="pick-group-head">{label}</div>
+              {ps.map((p) => (
+                <button key={p.id} className="pick-row" onClick={() => props.onChoose(p)}>
+                  <span className={`pr-pos pos-${pos.toLowerCase()}`}>{pos}</span>
+                  <span className="pr-name">{p.name}</span>
+                  <span className="pr-rating" data-tier={tier(p.rating)}>{p.rating}</span>
+                </button>
+              ))}
             </div>
-            <MiniPitch formation={f} />
-            <div className="fc-desc">{f.desc}</div>
-            <div className="fc-meters">
-              <Meter label="ATK" value={(f.atk + 0.1) / 0.45} accent="var(--green)" />
-              <Meter label="DEF" value={(f.def + 0.25) / 0.55} accent="var(--gold)" />
+          )
+        })}
+      </div>
+
+      <div className="xi-strip">
+        {Array.from({ length: SQUAD_SIZE }).map((_, i) => {
+          const p = squad[i]
+          return (
+            <div key={i} className={`xi-slot ${p ? 'filled' : ''} ${i === picked ? 'active' : ''}`}>
+              <span className="xi-pos">{p ? p.pos : '·'}</span>
+              <span className="xi-name">{p ? `${p.flag} ${shortName(p.name)}` : '—'}</span>
             </div>
-          </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function MiniPitch({ formation }: { formation: Formation }) {
+// ── Review ──────────────────────────────────────────────────────────
+function Review({
+  squad,
+  strength,
+  shape,
+  onStart,
+}: {
+  squad: Player[]
+  strength: { overall: number; attack: number; defense: number }
+  shape: { label: string; gk: number }
+  onStart: () => void
+}) {
+  const lines: { key: string; players: Player[] }[] = [
+    { key: 'FWD', players: squad.filter((p) => p.pos === 'FWD') },
+    { key: 'MID', players: squad.filter((p) => p.pos === 'MID') },
+    { key: 'DEF', players: squad.filter((p) => p.pos === 'DEF') },
+    { key: 'GK', players: squad.filter((p) => p.pos === 'GK') },
+  ].filter((l) => l.players.length > 0)
+
   return (
-    <div className="mini-pitch">
-      {formation.rows.map((row, i) => (
-        <div className="mini-row" key={i}>
-          {row.map((s) => (
-            <span key={s.key} className={`dot dot-${s.pos.toLowerCase()}`} />
-          ))}
-        </div>
-      ))}
+    <div className="screen review">
+      <div className="kicker">Shape {shape.label} · your XI</div>
+      <h2 className="slot-title">
+        Squad rating <span className="gold">{strength.overall.toFixed(1)}</span>
+      </h2>
+
+      <div className="strength-meters">
+        <Meter label="ATK" value={(strength.attack - 45) / 50} accent="var(--green)" />
+        <Meter label="DEF" value={(strength.defense - 45) / 50} accent="var(--gold)" />
+      </div>
+
+      {shape.gk === 0 && (
+        <div className="warn-banner">⚠️ No goalkeeper — you'll concede heavily!</div>
+      )}
+
+      <div className="pitch">
+        {lines.map((line) => (
+          <div className="pitch-line" key={line.key}>
+            {line.players.map((p) => (
+              <div className="pitch-player" key={p.id}>
+                <div className="pp-flag">{p.flag}</div>
+                <div className="pp-name">{shortName(p.name)}</div>
+                <div className="pp-rating" data-tier={tier(p.rating)}>{p.rating}</div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <button className="btn primary big" onClick={onStart}>
+        Kick off the World Cup →
+      </button>
     </div>
   )
 }
@@ -220,125 +291,6 @@ function Meter({ label, value, accent }: { label: string; value: number; accent:
       <span className="meter-track">
         <span className="meter-fill" style={{ width: `${pct}%`, background: accent }} />
       </span>
-    </div>
-  )
-}
-
-// ── Draft ───────────────────────────────────────────────────────────
-function Draft(props: {
-  formation: Formation
-  slotIndex: number
-  choices: Player[]
-  squad: (Player | null)[]
-  rating: number
-  onChoose: (p: Player) => void
-  onReroll: () => void
-}) {
-  const { formation, slotIndex, choices, squad, rating } = props
-  const slot = formation.slots[slotIndex]
-  const total = formation.slots.length
-  return (
-    <div className="screen draft">
-      <div className="draft-head">
-        <div>
-          <div className="kicker">
-            {formation.name} · Pick {slotIndex + 1} of {total}
-          </div>
-          <h2 className="slot-title">
-            Choose your <span className="gold">{slot.label}</span>
-          </h2>
-        </div>
-        <div className="rating-chip">
-          <span>Squad</span>
-          <strong>{rating ? rating.toFixed(1) : '—'}</strong>
-        </div>
-      </div>
-
-      <div className="progress">
-        <div className="progress-bar" style={{ width: `${(slotIndex / total) * 100}%` }} />
-      </div>
-
-      <div className="cards">
-        {choices.map((p) => (
-          <button key={p.id} className="player-card" onClick={() => props.onChoose(p)}>
-            <div className="pc-flag">{p.flag}</div>
-            <div className="pc-rating" data-tier={tier(p.rating)}>{p.rating}</div>
-            <div className="pc-name">{p.name}</div>
-            <div className="pc-meta">
-              {p.pos} · {p.nation}
-            </div>
-          </button>
-        ))}
-        {choices.length === 0 && <div className="empty">No players left for {slot.pos}.</div>}
-      </div>
-
-      <button className="btn ghost" onClick={props.onReroll}>
-        🎲 Re-roll choices
-      </button>
-
-      <div className="xi-strip">
-        {formation.slots.map((s, i) => {
-          const p = squad[i]
-          return (
-            <div
-              key={s.key}
-              className={`xi-slot ${p ? 'filled' : ''} ${i === slotIndex ? 'active' : ''}`}
-            >
-              <span className="xi-pos">{s.label}</span>
-              <span className="xi-name">{p ? shortName(p.name) : '—'}</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ── Review ──────────────────────────────────────────────────────────
-function Review({
-  formation,
-  squad,
-  rating,
-  onStart,
-}: {
-  formation: Formation
-  squad: (Player | null)[]
-  rating: number
-  onStart: () => void
-}) {
-  // map slot.key → drafted player (squad is parallel to formation.slots)
-  const bySlot = new Map<string, Player | null>(
-    formation.slots.map((s, i) => [s.key, squad[i]]),
-  )
-  return (
-    <div className="screen review">
-      <div className="kicker">{formation.name} · your starting XI</div>
-      <h2 className="slot-title">
-        Squad rating <span className="gold">{rating.toFixed(1)}</span>
-      </h2>
-      <div className="pitch">
-        {formation.rows.map((row, i) => (
-          <div className="pitch-line" key={i}>
-            {row.map((s) => {
-              const p = bySlot.get(s.key)
-              return (
-                <div className="pitch-player" key={s.key}>
-                  <div className="pp-flag">{p ? p.flag : '⚪'}</div>
-                  <div className="pp-name">{p ? shortName(p.name) : s.label}</div>
-                  {p && (
-                    <div className="pp-rating" data-tier={tier(p.rating)}>
-                      {p.rating}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        ))}
-      </div>
-      <button className="btn primary big" onClick={onStart}>
-        Kick off the World Cup →
-      </button>
     </div>
   )
 }
@@ -486,14 +438,14 @@ function tagFor(r: MatchResult): string {
 // ── Result ──────────────────────────────────────────────────────────
 function Result({
   result,
-  formation,
+  shape,
   groupName,
   squad,
   rating,
   onAgain,
 }: {
   result: TournamentResult
-  formation: Formation
+  shape: string
   groupName: string
   squad: Player[]
   rating: number
@@ -517,7 +469,7 @@ function Result({
 
   const [copied, setCopied] = useState(false)
   function share() {
-    const text = buildShareText(result, formation, rating)
+    const text = buildShareText(result, shape, rating)
     navigator.clipboard?.writeText(text).then(
       () => {
         setCopied(true)
@@ -551,7 +503,7 @@ function Result({
       />
 
       <div className="squad-mini">
-        <span className="mini-chip formation-chip">{formation.name}</span>
+        <span className="mini-chip formation-chip">{shape}</span>
         {squad.map((p) => (
           <span key={p.id} className="mini-chip">
             {p.flag} {shortName(p.name)}
@@ -597,7 +549,7 @@ function shortRound(name: string): string {
     .replace('Semi-Final', 'SF')
 }
 
-function buildShareText(result: TournamentResult, formation: Formation, rating: number): string {
+function buildShareText(result: TournamentResult, shape: string, rating: number): string {
   const squares = result.results
     .map((r) => (r.advanced ? (r.outcome === 'win' ? '🟩' : '🟨') : '🟥'))
     .join('')
@@ -606,5 +558,5 @@ function buildShareText(result: TournamentResult, formation: Formation, rating: 
     : result.champion
       ? 'CHAMPIONS 🏆'
       : `OUT @ ${result.eliminatedAt}`
-  return `Road to Glory 2026 — ${status}\n${formation.name} · rating ${rating.toFixed(1)}\n${squares}\nCan you go unbeaten?`
+  return `Road to Glory 2026 — ${status}\n${shape} · rating ${rating.toFixed(1)}\n${squares}\nCan you go unbeaten?`
 }

@@ -336,6 +336,151 @@
   transition: width 0.3s ease;
 }
 
+.draw-flag {
+  font-size: 1.6rem;
+  vertical-align: -2px;
+}
+
+/* ── Pick list (country squad) ── */
+.pick-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.pick-prompt {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.btn.small {
+  padding: 8px 12px;
+  min-height: 0;
+  font-size: 0.78rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.pick-list {
+  max-height: 46vh;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.pick-group {
+  margin-bottom: 10px;
+}
+.pick-group-head {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin: 6px 2px;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 11px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.pick-row:hover {
+  border-color: var(--gold);
+  background: var(--card-hi);
+}
+.pick-row:active {
+  transform: scale(0.99);
+}
+.pr-pos {
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 3px 6px;
+  border-radius: 6px;
+  width: 34px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.pos-gk {
+  background: #cdd6df;
+  color: #1a1f22;
+}
+.pos-def {
+  background: var(--green);
+  color: #062b16;
+}
+.pos-mid {
+  background: var(--gold);
+  color: #2b2106;
+}
+.pos-fwd {
+  background: var(--red);
+  color: #2b0606;
+}
+.pr-name {
+  flex: 1;
+  font-weight: 700;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pr-rating {
+  font-weight: 900;
+  font-size: 0.92rem;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: #333;
+}
+.pr-rating[data-tier='elite'] {
+  background: linear-gradient(135deg, #ffd966, var(--gold));
+  color: #1a1205;
+}
+.pr-rating[data-tier='gold'] {
+  background: var(--gold);
+  color: #1a1205;
+}
+.pr-rating[data-tier='silver'] {
+  background: #c7d0d6;
+  color: #1a1f22;
+}
+.pr-rating[data-tier='bronze'] {
+  background: #c08457;
+  color: #1a1205;
+}
+
+/* ── Review strength meters + warning ── */
+.strength-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 340px;
+  margin: 10px auto 4px;
+}
+.warn-banner {
+  margin: 10px 0 2px;
+  padding: 9px 12px;
+  border-radius: 11px;
+  background: rgba(255, 93, 93, 0.14);
+  border: 1px solid rgba(255, 93, 93, 0.4);
+  color: var(--red);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
