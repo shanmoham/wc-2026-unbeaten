@@ -94,6 +94,7 @@ export default function App() {
   return (
     <div className="app">
       <div className="bg-grad" />
+      <div className="device">
       {screen === 'title' && <Title onStart={() => setScreen('formation')} />}
       {screen === 'formation' && <FormationSelect onPick={chooseFormation} />}
       {screen === 'draft' && (
@@ -132,6 +133,7 @@ export default function App() {
           onAgain={playAgain}
         />
       )}
+      </div>
     </div>
   )
 }

@@ -20,11 +20,9 @@
   position: relative;
   min-height: 100dvh;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 24px 16px 48px;
   color: var(--text);
-  overflow: hidden;
 }
 
 .bg-grad {
@@ -37,9 +35,40 @@
   z-index: -1;
 }
 
+/* Mobile-first phone column. On wider screens it becomes a centered device frame. */
+.device {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  min-height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) 18px
+    max(28px, env(safe-area-inset-bottom)) 18px;
+  overflow-x: hidden;
+}
+
+@media (min-width: 600px) {
+  .app {
+    padding: 24px;
+  }
+  .device {
+    min-height: 0;
+    height: min(900px, 94vh);
+    overflow-y: auto;
+    border-radius: 38px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.16);
+    box-shadow:
+      0 30px 90px rgba(0, 0, 0, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    padding: 28px 22px;
+  }
+  .device::-webkit-scrollbar {
+    width: 0;
+  }
+}
+
 .screen {
   width: 100%;
-  max-width: 560px;
   animation: rise 0.4s ease both;
 }
 
@@ -49,7 +78,7 @@
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  padding-top: 6vh;
+  padding-top: 4vh;
 }
 
 @keyframes rise {
@@ -122,10 +151,14 @@
   border-radius: 14px;
   font-weight: 800;
   font-size: 1rem;
-  padding: 14px 22px;
+  padding: 15px 22px;
+  min-height: 50px;
   cursor: pointer;
   transition: transform 0.08s ease, filter 0.15s ease, background 0.15s ease;
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
 }
 .btn:active {
   transform: scale(0.97);
@@ -157,7 +190,7 @@
 /* ── Formation select ── */
 .formation-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
 .formation-card {
@@ -438,15 +471,16 @@
 .pitch-line {
   display: flex;
   justify-content: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: clamp(6px, 2.5vw, 16px);
 }
 .pitch-player {
   position: relative;
-  width: 72px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 78px;
 }
 .pp-flag {
-  font-size: 1.7rem;
+  font-size: clamp(1.4rem, 6.5vw, 1.7rem);
 }
 .pp-name {
   font-size: 0.72rem;
@@ -634,6 +668,11 @@
   display: flex;
   gap: 10px;
   margin-top: 8px;
+  width: 100%;
+  max-width: 420px;
+}
+.result-actions .btn {
+  flex: 1;
 }
 
 @media (max-width: 480px) {

@@ -20,4 +20,11 @@ body {
 
 button {
   font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* prevent iOS text-size auto-inflation */
+html {
+  -webkit-text-size-adjust: 100%;
 }
