@@ -2,24 +2,43 @@ import { useMemo, useState } from 'react'
 import {
   ROUNDS,
   SQUAD_SIZE,
+  FORMATIONS,
   draftCountry,
+  neededPositions,
+  remainingNeed,
   setupTournament,
   squadStrength,
-  squadShape,
   buildTournament,
+  simulateWorldCup,
   type Player,
+  type Formation,
   type DraftDraw,
 } from './game/engine'
-import type { MatchResult, TournamentResult, QualifiedAs, GroupRow } from './game/engine'
+import type {
+  MatchResult,
+  TournamentResult,
+  QualifiedAs,
+  GroupRow,
+  WorldCupResult,
+} from './game/engine'
 import type { NationalTeam } from './data/teams'
+import type { Position } from './data/players'
 import './App.css'
 
-type Screen = 'title' | 'draft' | 'review' | 'tournament' | 'result'
+type Screen = 'title' | 'formation' | 'draft' | 'review' | 'tournament' | 'result'
+
+const POS_LABELS: { pos: Position; label: string }[] = [
+  { pos: 'GK', label: 'Goalkeepers' },
+  { pos: 'DEF', label: 'Defenders' },
+  { pos: 'MID', label: 'Midfielders' },
+  { pos: 'FWD', label: 'Forwards' },
+]
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('title')
+  const [formation, setFormation] = useState<Formation>(FORMATIONS[0])
 
-  // draft state — squad is the list of players picked so far (any positions)
+  // draft state — squad is the list of players picked so far
   const [squad, setSquad] = useState<Player[]>([])
   const [draw, setDraw] = useState<DraftDraw | null>(null)
 
@@ -27,38 +46,42 @@ export default function App() {
   const [opponents, setOpponents] = useState<NationalTeam[]>([])
   const [groupName, setGroupName] = useState('')
   const [tournament, setTournament] = useState<TournamentResult | null>(null)
+  const [worldCup, setWorldCup] = useState<WorldCupResult | null>(null)
   const [revealed, setRevealed] = useState(0)
 
   const takenIds = useMemo(() => new Set(squad.map((p) => p.id)), [squad])
   const strength = useMemo(() => squadStrength(squad), [squad])
-  const shape = useMemo(() => squadShape(squad), [squad])
+  const remaining = useMemo(() => remainingNeed(formation, squad), [formation, squad])
 
   // ── flow helpers ─────────────────────────────────────────────
-  function startDraft() {
+  function chooseFormation(f: Formation) {
+    setFormation(f)
     setSquad([])
-    setDraw(draftCountry(new Set()))
+    setDraw(draftCountry(new Set(), neededPositions(f, [])))
     setScreen('draft')
   }
 
   function choose(player: Player) {
+    if (remaining[player.pos] <= 0) return // position already full
     const next = [...squad, player]
     setSquad(next)
     if (next.length >= SQUAD_SIZE) {
       setScreen('review')
       return
     }
-    setDraw(draftCountry(new Set(next.map((p) => p.id))))
+    setDraw(draftCountry(new Set(next.map((p) => p.id)), neededPositions(formation, next)))
   }
 
   function reroll() {
-    setDraw(draftCountry(takenIds))
+    setDraw(draftCountry(takenIds, neededPositions(formation, squad)))
   }
 
   function beginTournament() {
     const setup = setupTournament()
     setOpponents(setup.opponents)
     setGroupName(setup.groupName)
-    setTournament(buildTournament(strength, setup))
+    setTournament(buildTournament(strength, formation, squad, setup))
+    setWorldCup(simulateWorldCup())
     setRevealed(0)
     setScreen('tournament')
   }
@@ -78,6 +101,7 @@ export default function App() {
     setSquad([])
     setDraw(null)
     setTournament(null)
+    setWorldCup(null)
     setRevealed(0)
   }
 
@@ -85,11 +109,14 @@ export default function App() {
     <div className="app">
       <div className="bg-grad" />
       <div className="device">
-        {screen === 'title' && <Title onStart={startDraft} />}
+        {screen === 'title' && <Title onStart={() => setScreen('formation')} />}
+        {screen === 'formation' && <FormationSelect onPick={chooseFormation} />}
         {screen === 'draft' && draw && (
           <Draft
+            formation={formation}
             draw={draw}
             squad={squad}
+            remaining={remaining}
             rating={strength.overall}
             onChoose={choose}
             onReroll={reroll}
@@ -97,9 +124,9 @@ export default function App() {
         )}
         {screen === 'review' && (
           <Review
+            formation={formation}
             squad={squad}
             strength={strength}
-            shape={shape}
             onStart={beginTournament}
           />
         )}
@@ -118,10 +145,11 @@ export default function App() {
         {screen === 'result' && tournament && (
           <Result
             result={tournament}
-            shape={shape.label}
+            shape={formation.name}
             groupName={groupName}
             squad={squad}
             rating={strength.overall}
+            worldCup={worldCup}
             onAgain={playAgain}
           />
         )}
@@ -140,39 +168,98 @@ function Title({ onStart }: { onStart: () => void }) {
       </h1>
       <div className="year">2026 · WORLD CUP</div>
       <p className="tagline">
-        Each pick, you're handed a country — draft any one of its players. Build
-        an XI of 11, then survive the group stage and five knockout rounds.{' '}
+        Pick a formation, then draft an XI to fill it — a country a time. Survive
+        the group stage and five knockout rounds.{' '}
         <strong>Win all 8 — go unbeaten.</strong>
       </p>
       <button className="btn primary big" onClick={onStart}>
         Start the draft
       </button>
-      <div className="footnote">48 nations · build any XI · one loss and you're out</div>
+      <div className="footnote">48 nations · 6 formations · one loss and you're out</div>
+    </div>
+  )
+}
+
+// ── Formation select ────────────────────────────────────────────────
+function FormationSelect({ onPick }: { onPick: (f: Formation) => void }) {
+  return (
+    <div className="screen">
+      <div className="kicker">Step 1 of 2</div>
+      <h2 className="slot-title">
+        Choose your <span className="gold">formation</span>
+      </h2>
+      <p className="tagline" style={{ margin: '6px 0 18px' }}>
+        It sets how many of each position you'll draft — and your tactical tilt.
+        More attackers score more but concede more.
+      </p>
+      <div className="formation-grid">
+        {FORMATIONS.map((f) => (
+          <button key={f.id} className="formation-card" onClick={() => onPick(f)}>
+            <span className="fc-name">{f.name}</span>
+            <MiniPitch formation={f} />
+            <div className="fc-desc">{f.desc}</div>
+            <div className="fc-meters">
+              <Meter label="ATK" value={(f.atk + 0.1) / 0.45} accent="var(--green)" />
+              <Meter label="DEF" value={(f.def + 0.25) / 0.55} accent="var(--gold)" />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MiniPitch({ formation }: { formation: Formation }) {
+  const rows: { pos: Position; n: number }[] = [
+    { pos: 'FWD', n: formation.need.FWD },
+    { pos: 'MID', n: formation.need.MID },
+    { pos: 'DEF', n: formation.need.DEF },
+    { pos: 'GK', n: formation.need.GK },
+  ]
+  return (
+    <div className="mini-pitch">
+      {rows.map((r) => (
+        <div className="mini-row" key={r.pos}>
+          {Array.from({ length: r.n }).map((_, j) => (
+            <span key={j} className={`dot dot-${r.pos.toLowerCase()}`} />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Meter({ label, value, accent }: { label: string; value: number; accent: string }) {
+  const pct = Math.max(6, Math.min(100, value * 100))
+  return (
+    <div className="meter">
+      <span className="meter-label">{label}</span>
+      <span className="meter-track">
+        <span className="meter-fill" style={{ width: `${pct}%`, background: accent }} />
+      </span>
     </div>
   )
 }
 
 // ── Draft ───────────────────────────────────────────────────────────
 function Draft(props: {
+  formation: Formation
   draw: DraftDraw
   squad: Player[]
+  remaining: Record<Position, number>
   rating: number
   onChoose: (p: Player) => void
   onReroll: () => void
 }) {
-  const { draw, squad, rating } = props
+  const { formation, draw, squad, remaining, rating } = props
   const picked = squad.length
-  const groups: { pos: string; label: string }[] = [
-    { pos: 'GK', label: 'Goalkeepers' },
-    { pos: 'DEF', label: 'Defenders' },
-    { pos: 'MID', label: 'Midfielders' },
-    { pos: 'FWD', label: 'Forwards' },
-  ]
   return (
     <div className="screen draft">
       <div className="draft-head">
         <div>
-          <div className="kicker">Pick {picked + 1} of {SQUAD_SIZE}</div>
+          <div className="kicker">
+            {formation.name} · pick {picked + 1} of {SQUAD_SIZE}
+          </div>
           <h2 className="slot-title">
             <span className="draw-flag">{draw.team.flag}</span> {draw.team.name}
           </h2>
@@ -187,22 +274,40 @@ function Draft(props: {
         <div className="progress-bar" style={{ width: `${(picked / SQUAD_SIZE) * 100}%` }} />
       </div>
 
+      <div className="needs">
+        {POS_LABELS.map(({ pos }) => (
+          <span key={pos} className={`need-chip ${remaining[pos] === 0 ? 'done' : ''}`}>
+            <span className={`pr-pos pos-${pos.toLowerCase()}`}>{pos}</span>
+            {remaining[pos] === 0 ? '✓' : `×${remaining[pos]}`}
+          </span>
+        ))}
+      </div>
+
       <div className="pick-bar">
-        <span className="pick-prompt">Pick any {draw.team.name} player</span>
+        <span className="pick-prompt">Pick a {draw.team.name} player to fill a slot</span>
         <button className="btn ghost small" onClick={props.onReroll}>
           🎲 New country
         </button>
       </div>
 
       <div className="pick-list">
-        {groups.map(({ pos, label }) => {
+        {POS_LABELS.map(({ pos, label }) => {
           const ps = draw.players.filter((p) => p.pos === pos)
           if (!ps.length) return null
+          const full = remaining[pos] === 0
           return (
-            <div className="pick-group" key={pos}>
-              <div className="pick-group-head">{label}</div>
+            <div className={`pick-group ${full ? 'full' : ''}`} key={pos}>
+              <div className="pick-group-head">
+                {label}
+                <span className="pgh-need">{full ? '✓ filled' : `need ${remaining[pos]}`}</span>
+              </div>
               {ps.map((p) => (
-                <button key={p.id} className="pick-row" onClick={() => props.onChoose(p)}>
+                <button
+                  key={p.id}
+                  className="pick-row"
+                  disabled={full}
+                  onClick={() => props.onChoose(p)}
+                >
                   <span className={`pr-pos pos-${pos.toLowerCase()}`}>{pos}</span>
                   <span className="pr-name">{p.name}</span>
                   <span className="pr-rating" data-tier={tier(p.rating)}>{p.rating}</span>
@@ -230,26 +335,24 @@ function Draft(props: {
 
 // ── Review ──────────────────────────────────────────────────────────
 function Review({
+  formation,
   squad,
   strength,
-  shape,
   onStart,
 }: {
+  formation: Formation
   squad: Player[]
   strength: { overall: number; attack: number; defense: number }
-  shape: { label: string; gk: number }
   onStart: () => void
 }) {
-  const lines: { key: string; players: Player[] }[] = [
-    { key: 'FWD', players: squad.filter((p) => p.pos === 'FWD') },
-    { key: 'MID', players: squad.filter((p) => p.pos === 'MID') },
-    { key: 'DEF', players: squad.filter((p) => p.pos === 'DEF') },
-    { key: 'GK', players: squad.filter((p) => p.pos === 'GK') },
-  ].filter((l) => l.players.length > 0)
+  const lines = POS_LABELS.slice()
+    .reverse()
+    .map((l) => ({ key: l.pos, players: squad.filter((p) => p.pos === l.pos) }))
+    .filter((l) => l.players.length > 0)
 
   return (
     <div className="screen review">
-      <div className="kicker">Shape {shape.label} · your XI</div>
+      <div className="kicker">{formation.name} · your XI</div>
       <h2 className="slot-title">
         Squad rating <span className="gold">{strength.overall.toFixed(1)}</span>
       </h2>
@@ -258,10 +361,6 @@ function Review({
         <Meter label="ATK" value={(strength.attack - 45) / 50} accent="var(--green)" />
         <Meter label="DEF" value={(strength.defense - 45) / 50} accent="var(--gold)" />
       </div>
-
-      {shape.gk === 0 && (
-        <div className="warn-banner">⚠️ No goalkeeper — you'll concede heavily!</div>
-      )}
 
       <div className="pitch">
         {lines.map((line) => (
@@ -279,18 +378,6 @@ function Review({
       <button className="btn primary big" onClick={onStart}>
         Kick off the World Cup →
       </button>
-    </div>
-  )
-}
-
-function Meter({ label, value, accent }: { label: string; value: number; accent: string }) {
-  const pct = Math.max(6, Math.min(100, value * 100))
-  return (
-    <div className="meter">
-      <span className="meter-label">{label}</span>
-      <span className="meter-track">
-        <span className="meter-fill" style={{ width: `${pct}%`, background: accent }} />
-      </span>
     </div>
   )
 }
@@ -338,7 +425,7 @@ function Tournament(props: {
           // Always render all 8 rounds so the row count never reveals how far
           // you'll get. A round is only shown once it has been revealed.
           if (i < revealed && result) {
-            return <MatchRow key={i} r={result} />
+            return <MatchRow key={i} r={result} defaultOpen={i === revealed - 1} />
           }
           const upcoming = i === revealed && canReveal
           return (
@@ -362,19 +449,58 @@ function Tournament(props: {
   )
 }
 
-function MatchRow({ r }: { r: MatchResult }) {
+function MatchRow({ r, defaultOpen }: { r: MatchResult; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(!!defaultOpen)
   const cls = r.advanced ? (r.outcome === 'win' ? 'win' : 'scrape') : 'loss'
   return (
-    <div className={`match revealed ${cls}`}>
-      <span className="m-round">{r.round}</span>
-      <span className="m-vs">
-        {r.opponent.flag} {r.opponent.name}
-      </span>
-      <span className="m-score">
-        {r.myGoals}–{r.oppGoals}
-        {r.pens && <em className="pens"> ({r.pens.me}–{r.pens.opp} pens)</em>}
-      </span>
-      <span className="m-tag">{tagFor(r)}</span>
+    <div className={`match revealed ${cls} ${open ? 'open' : ''}`}>
+      <button className="match-head" onClick={() => setOpen((o) => !o)}>
+        <span className="m-round">{r.round}</span>
+        <span className="m-vs">
+          {r.opponent.flag} {r.opponent.name}
+        </span>
+        <span className="m-score">
+          {r.myGoals}–{r.oppGoals}
+          {r.pens && <em className="pens"> ({r.pens.me}–{r.pens.opp} pens)</em>}
+        </span>
+        <span className="m-tag">{tagFor(r)}</span>
+      </button>
+      {open && <MatchDetail r={r} />}
+    </div>
+  )
+}
+
+function MatchDetail({ r }: { r: MatchResult }) {
+  const { stats } = r
+  return (
+    <div className="match-detail">
+      <div className="md-scorers">
+        <div className="md-col">
+          {r.myScorers.length === 0 ? (
+            <span className="md-none">No goals</span>
+          ) : (
+            r.myScorers.map((g, i) => (
+              <span key={i} className="md-goal">
+                ⚽ {g.minute}' {shortName(g.name)}
+              </span>
+            ))
+          )}
+        </div>
+        <div className="md-col md-away">
+          {r.oppScorers.map((g, i) => (
+            <span key={i} className="md-goal">
+              {shortName(g.name)} {g.minute}' ⚽
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="md-stats">
+        <span>Poss {stats.possession}%</span>
+        <span>
+          Shots {stats.shots[0]} ({stats.sot[0]})–{stats.shots[1]} ({stats.sot[1]})
+        </span>
+        <span>xG {stats.xg[0]}–{stats.xg[1]}</span>
+      </div>
     </div>
   )
 }
@@ -442,6 +568,7 @@ function Result({
   groupName,
   squad,
   rating,
+  worldCup,
   onAgain,
 }: {
   result: TournamentResult
@@ -449,6 +576,7 @@ function Result({
   groupName: string
   squad: Player[]
   rating: number
+  worldCup: WorldCupResult | null
   onAgain: () => void
 }) {
   const wins = result.results.filter((r) => r.outcome === 'win').length
@@ -501,6 +629,20 @@ function Result({
         standing={result.groupStanding}
         qualifiedAs={result.qualifiedAs}
       />
+
+      {worldCup && !result.champion && (
+        <div className="wc-winner">
+          <div className="wcw-label">Meanwhile, the World Cup was won by</div>
+          <div className="wcw-team">
+            {worldCup.champion.flag} {worldCup.champion.name}
+          </div>
+          <div className="wcw-final">
+            beat {worldCup.runnerUp.flag} {worldCup.runnerUp.name} {worldCup.finalScore[0]}–
+            {worldCup.finalScore[1]}
+            {worldCup.finalPens ? ' (pens)' : ''} in the final
+          </div>
+        </div>
+      )}
 
       <div className="squad-mini">
         <span className="mini-chip formation-chip">{shape}</span>

@@ -370,13 +370,54 @@
 .pick-group {
   margin-bottom: 10px;
 }
+.pick-group.full {
+  opacity: 0.45;
+}
 .pick-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   font-size: 0.62rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   color: var(--muted);
   margin: 6px 2px;
+}
+.pgh-need {
+  letter-spacing: 0.04em;
+}
+.pick-group.full .pgh-need {
+  color: var(--green);
+}
+.pick-row:disabled {
+  cursor: not-allowed;
+}
+.pick-row:disabled:hover {
+  border-color: var(--line);
+  background: var(--card);
+}
+
+/* ── Needs chips ── */
+.needs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.need-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 4px 9px 4px 4px;
+}
+.need-chip.done {
+  opacity: 0.5;
+  color: var(--green);
 }
 .pick-row {
   display: flex;
@@ -768,6 +809,66 @@
 }
 .match.revealed {
   animation: pop 0.35s ease both;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+.match-head {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 14px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.match-detail {
+  padding: 0 14px 12px;
+  border-top: 1px dashed var(--line);
+  margin-top: -2px;
+  animation: pop 0.25s ease both;
+}
+.md-scorers {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+}
+.md-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.md-col.md-away {
+  text-align: right;
+  color: var(--muted);
+}
+.md-goal {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.md-none {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.md-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 @keyframes pop {
   from {
@@ -881,6 +982,32 @@
 .rg-opp {
   font-size: 1rem;
 }
+.wc-winner {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid rgba(245, 197, 66, 0.35);
+  background: linear-gradient(160deg, rgba(245, 197, 66, 0.12), rgba(245, 197, 66, 0.03));
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+}
+.wcw-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.wcw-team {
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin: 4px 0 2px;
+}
+.wcw-final {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .squad-mini {
   display: flex;
   flex-wrap: wrap;

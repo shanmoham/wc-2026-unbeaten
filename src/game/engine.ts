@@ -2,9 +2,52 @@ import { PLAYERS, type Player, type Position } from '../data/players'
 import { TEAMS, teamByName, type NationalTeam } from '../data/teams'
 import { GROUPS } from '../data/groups'
 
-// ── Squad ───────────────────────────────────────────────────────────
-/** You draft 11 players — any positions. Balance is up to you. */
+// ── Squad / formations ──────────────────────────────────────────────
 export const SQUAD_SIZE = 11
+
+/** A formation defines how many of each position you must draft, plus a
+ *  tactical bias on the match sim. */
+export interface Formation {
+  id: string
+  name: string
+  desc: string
+  /** attacking intent — added to our expected goals (xG) */
+  atk: number
+  /** defensive solidity — subtracted from the opponent's xG */
+  def: number
+  /** required count per position (sums to SQUAD_SIZE) */
+  need: Record<Position, number>
+}
+
+export const FORMATIONS: Formation[] = [
+  { id: '433', name: '4-3-3', desc: 'Balanced attack — the modern default.', atk: 0.2, def: 0.0, need: { GK: 1, DEF: 4, MID: 3, FWD: 3 } },
+  { id: '442', name: '4-4-2', desc: 'Classic and solid, hard to break down.', atk: 0.05, def: 0.12, need: { GK: 1, DEF: 4, MID: 4, FWD: 2 } },
+  { id: '4231', name: '4-2-3-1', desc: 'Controlled — possession through midfield.', atk: 0.1, def: 0.1, need: { GK: 1, DEF: 4, MID: 5, FWD: 1 } },
+  { id: '352', name: '3-5-2', desc: 'Midfield dominance, wing-backs bomb on.', atk: 0.18, def: 0.0, need: { GK: 1, DEF: 3, MID: 5, FWD: 2 } },
+  { id: '343', name: '3-4-3', desc: 'All-out attack — high risk, high reward.', atk: 0.35, def: -0.22, need: { GK: 1, DEF: 3, MID: 4, FWD: 3 } },
+  { id: '532', name: '5-3-2', desc: 'Park the bus and hit on the counter.', atk: -0.08, def: 0.28, need: { GK: 1, DEF: 5, MID: 3, FWD: 2 } },
+]
+
+/** How many of each position are still to be drafted for this formation. */
+export function remainingNeed(
+  formation: Formation,
+  squad: Player[],
+): Record<Position, number> {
+  const have: Record<Position, number> = { GK: 0, DEF: 0, MID: 0, FWD: 0 }
+  squad.forEach((p) => have[p.pos]++)
+  return {
+    GK: formation.need.GK - have.GK,
+    DEF: formation.need.DEF - have.DEF,
+    MID: formation.need.MID - have.MID,
+    FWD: formation.need.FWD - have.FWD,
+  }
+}
+
+/** Positions that still have at least one slot open. */
+export function neededPositions(formation: Formation, squad: Player[]): Set<Position> {
+  const rem = remainingNeed(formation, squad)
+  return new Set((Object.keys(rem) as Position[]).filter((p) => rem[p] > 0))
+}
 
 // ── Tournament structure (2026 format): 3 group games + 5 knockouts ──
 export interface RoundDef {
@@ -46,14 +89,19 @@ export interface DraftDraw {
 
 const POS_ORDER: Record<Position, number> = { GK: 0, DEF: 1, MID: 2, FWD: 3 }
 
-export function draftCountry(takenIds: Set<string>): DraftDraw {
+/** Draw a random country (biased to ones with players in a still-needed
+ *  position) and return its available players, sorted by position then rating. */
+export function draftCountry(
+  takenIds: Set<string>,
+  needed: Set<Position>,
+): DraftDraw {
   const avail = TEAMS.map((t) => ({
     team: t,
     players: PLAYERS.filter((p) => p.nation === t.name && !takenIds.has(p.id)),
   })).filter((x) => x.players.length > 0)
-  // prefer countries that still have a few players to choose between
-  const rich = avail.filter((x) => x.players.length >= 3)
-  const chosen = pick(rich.length ? rich : avail)
+  // prefer countries that can actually fill a slot we still need
+  const useful = avail.filter((x) => x.players.some((p) => needed.has(p.pos)))
+  const chosen = pick(useful.length ? useful : avail)
   const players = [...chosen.players].sort(
     (a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.rating - a.rating,
   )
@@ -67,17 +115,9 @@ export interface Strength {
   defense: number
 }
 
-/** Average of the top `ideal` ratings, padding any missing slots with a weak
- *  "out of position" rating — so a unit that is short of players is punished. */
-function unitRating(ratings: number[], ideal: number, scrub = 52): number {
-  const filled = [...ratings].sort((a, b) => b - a)
-  while (filled.length < ideal) filled.push(scrub)
-  const top = filled.slice(0, ideal)
-  return top.reduce((s, x) => s + x, 0) / ideal
-}
+const avg = (xs: number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0)
 
-/** Derive attack and defence quality from whatever positions were drafted.
- *  No formation: a squad short of defenders leaks, no keeper is a disaster. */
+/** Break the (formation-complete) squad into attacking and defensive quality. */
 export function squadStrength(squad: Player[]): Strength {
   if (squad.length === 0) return { overall: 0, attack: 0, defense: 0 }
   const ratingsOf = (pos: Position) =>
@@ -87,18 +127,10 @@ export function squadStrength(squad: Player[]): Strength {
   const def = ratingsOf('DEF')
   const gk = ratingsOf('GK')
 
-  const attack = unitRating([...fwd, ...mid], 6)
-  const defLine = unitRating(def, 4)
-  const keeper = gk.length ? Math.max(...gk) : 46 // no recognised GK → emergency
-  const defense = defLine * 0.65 + keeper * 0.35
-  const overall = squad.reduce((s, p) => s + p.rating, 0) / squad.length
+  const attack = avg(fwd) * 0.7 + avg(mid) * 0.3
+  const defense = avg(def) * 0.6 + avg(gk) * 0.25 + avg(mid) * 0.15
+  const overall = avg(squad.map((p) => p.rating))
   return { overall, attack, defense }
-}
-
-/** The shape you ended up with, e.g. "4-3-3" (DEF-MID-FWD). */
-export function squadShape(squad: Player[]): { label: string; gk: number } {
-  const n = (pos: Position) => squad.filter((p) => p.pos === pos).length
-  return { label: `${n('DEF')}-${n('MID')}-${n('FWD')}`, gk: n('GK') }
 }
 
 // ── Tournament setup ────────────────────────────────────────────────
@@ -144,38 +176,112 @@ const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x
 
 export type Outcome = 'win' | 'draw' | 'loss'
 
+export interface GoalEvent {
+  name: string
+  minute: number
+}
+
+export interface MatchStats {
+  possession: number // our share, %
+  shots: [number, number]
+  sot: [number, number] // shots on target
+  xg: [number, number]
+}
+
 export interface MatchResult {
   round: string
   knockout: boolean
   opponent: NationalTeam
   myGoals: number
   oppGoals: number
+  myScorers: GoalEvent[]
+  oppScorers: GoalEvent[]
+  stats: MatchStats
   pens?: { me: number; opp: number }
   outcome: Outcome
   /** did we progress to the next round / survive the tournament */
   advanced: boolean
 }
 
+// likelihood of scoring by position
+const SCORE_WEIGHT: Record<Position, number> = { FWD: 1, MID: 0.5, DEF: 0.18, GK: 0.02 }
+
+function weightedIndex(weights: number[]): number {
+  const total = weights.reduce((s, w) => s + w, 0)
+  let r = Math.random() * total
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i]
+    if (r <= 0) return i
+  }
+  return weights.length - 1
+}
+
+/** Attribute goals to players, weighted by position and rating, with minutes. */
+function pickScorers(players: Player[], goals: number): GoalEvent[] {
+  if (goals <= 0 || players.length === 0) return []
+  const weights = players.map((p) => SCORE_WEIGHT[p.pos] * (0.5 + p.rating / 100))
+  const minutes = new Set<number>()
+  const events: GoalEvent[] = []
+  for (let g = 0; g < goals; g++) {
+    const p = players[weightedIndex(weights)]
+    let m = 1 + Math.floor(Math.random() * 90)
+    while (minutes.has(m)) m = 1 + Math.floor(Math.random() * 90)
+    minutes.add(m)
+    events.push({ name: p.name, minute: m })
+  }
+  return events.sort((a, b) => a.minute - b.minute)
+}
+
+const round1 = (x: number) => Math.round(x * 10) / 10
+
+function matchStats(
+  myXG: number,
+  oppXG: number,
+  myGoals: number,
+  oppGoals: number,
+  myOverall: number,
+  oppRating: number,
+): MatchStats {
+  const possession = clamp(Math.round(50 + (myOverall - oppRating) * 0.7), 28, 72)
+  const myShots = Math.max(myGoals, Math.round(myXG * 7 + 2 + Math.random() * 5))
+  const oppShots = Math.max(oppGoals, Math.round(oppXG * 7 + 2 + Math.random() * 5))
+  const mySot = clamp(Math.round(myShots * 0.45), myGoals, myShots)
+  const oppSot = clamp(Math.round(oppShots * 0.45), oppGoals, oppShots)
+  return {
+    possession,
+    shots: [myShots, oppShots],
+    sot: [mySot, oppSot],
+    xg: [round1(myXG), round1(oppXG)],
+  }
+}
+
 export function simulateMatch(
   strength: Strength,
+  formation: Formation,
   round: RoundDef,
   opponent: NationalTeam,
+  squad: Player[],
 ): MatchResult {
-  // Our attack quality vs their overall; their attack vs our defence quality.
+  // Our attack quality vs their overall; their attack vs our defence quality,
+  // nudged by the formation's tactical bias.
   const atkDiff = strength.attack - opponent.rating
   const defDiff = strength.defense - opponent.rating
-  const myXG = clamp(1.35 + atkDiff * 0.05, 0.25, 5)
-  const oppXG = clamp(1.35 - defDiff * 0.05, 0.2, 5)
+  const myXG = clamp(1.35 + atkDiff * 0.05 + formation.atk, 0.25, 5)
+  const oppXG = clamp(1.35 - defDiff * 0.05 - formation.def, 0.2, 5)
 
   const myGoals = poisson(myXG)
   const oppGoals = poisson(oppXG)
 
+  const oppSquad = PLAYERS.filter((p) => p.nation === opponent.name)
   const base: MatchResult = {
     round: round.name,
     knockout: round.knockout,
     opponent,
     myGoals,
     oppGoals,
+    myScorers: pickScorers(squad, myGoals),
+    oppScorers: pickScorers(oppSquad, oppGoals),
+    stats: matchStats(myXG, oppXG, myGoals, oppGoals, strength.overall, opponent.rating),
     outcome: 'win',
     advanced: true,
   }
@@ -350,6 +456,8 @@ export interface TournamentResult {
 
 export function buildTournament(
   strength: Strength,
+  formation: Formation,
+  squad: Player[],
   setup: TournamentSetup,
 ): TournamentResult {
   const { opponents, groupName } = setup
@@ -358,7 +466,7 @@ export function buildTournament(
 
   // ── Group stage: 3 games, then collective top-2 / best-third qualification
   const groupMatches = [0, 1, 2].map((i) =>
-    simulateMatch(strength, ROUNDS[i], opponents[i]),
+    simulateMatch(strength, formation, ROUNDS[i], opponents[i], squad),
   )
   const group = resolveGroup(groupMatches, opponents.slice(0, 3))
   // a group result never eliminates on its own; only the final standing does
@@ -382,7 +490,7 @@ export function buildTournament(
 
   // ── Knockouts: 5 rounds, any loss (incl. on penalties) ends the run
   for (let i = 3; i < ROUNDS.length; i++) {
-    const res = simulateMatch(strength, ROUNDS[i], opponents[i])
+    const res = simulateMatch(strength, formation, ROUNDS[i], opponents[i], squad)
     results.push(res)
     if (res.outcome !== 'win') perfect = false
     if (!res.advanced) {
@@ -391,6 +499,92 @@ export function buildTournament(
   }
 
   return { ...common, champion: true, perfect }
+}
+
+// ── Independent "actual" World Cup ──────────────────────────────────
+// Simulates the full 48-nation tournament (real groups → top 2 + 8 best
+// thirds → knockout bracket) to crown a champion, independent of the player.
+
+export interface WorldCupResult {
+  champion: NationalTeam
+  runnerUp: NationalTeam
+  finalScore: [number, number]
+  finalPens: boolean
+}
+
+interface NationStanding {
+  team: NationalTeam
+  pts: number
+  gf: number
+  ga: number
+  gd: number
+}
+
+function roundRobinTable(teams: NationalTeam[]): NationStanding[] {
+  const rows: NationStanding[] = teams.map((t) => ({ team: t, pts: 0, gf: 0, ga: 0, gd: 0 }))
+  const bump = (s: NationStanding, gf: number, ga: number) => {
+    s.gf += gf
+    s.ga += ga
+    if (gf > ga) s.pts += 3
+    else if (gf === ga) s.pts += 1
+  }
+  for (let a = 0; a < teams.length; a++) {
+    for (let b = a + 1; b < teams.length; b++) {
+      const [ga, gb] = teamGoals(teams[a].rating, teams[b].rating)
+      bump(rows[a], ga, gb)
+      bump(rows[b], gb, ga)
+    }
+  }
+  rows.forEach((r) => (r.gd = r.gf - r.ga))
+  return rows.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
+}
+
+/** Winner of a single knockout tie (penalties on a draw, weighted by rating). */
+function knockoutWinner(a: NationalTeam, b: NationalTeam): NationalTeam {
+  const [ga, gb] = teamGoals(a.rating, b.rating)
+  if (ga > gb) return a
+  if (gb > ga) return b
+  const pWin = clamp(0.5 + (a.rating - b.rating) * 0.012, 0.12, 0.88)
+  return Math.random() < pWin ? a : b
+}
+
+export function simulateWorldCup(): WorldCupResult {
+  const advancers: NationalTeam[] = []
+  const thirds: NationStanding[] = []
+  for (const g of GROUPS) {
+    const teams = g.teams
+      .map((n) => teamByName(n))
+      .filter((t): t is NationalTeam => Boolean(t))
+    const table = roundRobinTable(teams)
+    advancers.push(table[0].team, table[1].team)
+    thirds.push(table[2])
+  }
+  thirds.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
+  advancers.push(...thirds.slice(0, 8).map((t) => t.team)) // 24 + 8 = 32
+
+  let round = shuffle(advancers)
+  let runnerUp = round[0]
+  let finalScore: [number, number] = [0, 0]
+  let finalPens = false
+  while (round.length > 1) {
+    const next: NationalTeam[] = []
+    for (let i = 0; i < round.length; i += 2) {
+      const a = round[i]
+      const b = round[i + 1]
+      if (round.length === 2) {
+        const [ga, gb] = teamGoals(a.rating, b.rating)
+        finalPens = ga === gb
+        const winner = finalPens ? knockoutWinner(a, b) : ga > gb ? a : b
+        finalScore = [ga, gb]
+        runnerUp = winner === a ? b : a
+        next.push(winner)
+      } else {
+        next.push(knockoutWinner(a, b))
+      }
+    }
+    round = next
+  }
+  return { champion: round[0], runnerUp, finalScore, finalPens }
 }
 
 export { PLAYERS, type Player, type Position, type NationalTeam }
