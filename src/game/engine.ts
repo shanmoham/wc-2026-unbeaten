@@ -1,5 +1,6 @@
 import { PLAYERS, playersByPos, type Player, type Position } from '../data/players'
-import { TEAMS, type NationalTeam } from '../data/teams'
+import { TEAMS, teamByName, type NationalTeam } from '../data/teams'
+import { GROUPS } from '../data/groups'
 
 // ── Formations ──────────────────────────────────────────────────────
 export interface Slot {
@@ -151,18 +152,31 @@ export function squadStrength(squad: Player[]): Strength {
   return { overall, attack, defense }
 }
 
-// ── Opponent bracket ────────────────────────────────────────────────
-/** Draw one distinct opponent per round, biased stronger in later rounds. */
-export function drawOpponents(): NationalTeam[] {
-  const used = new Set<string>()
-  return ROUNDS.map((r) => {
-    const pool = TEAMS.filter(
-      (t) => t.rating >= r.minOppRating && !used.has(t.name),
-    )
+// ── Tournament setup ────────────────────────────────────────────────
+export interface TournamentSetup {
+  groupName: string
+  /** length 8: [group foe ×3, knockout foe ×5] */
+  opponents: NationalTeam[]
+}
+
+/** Drop the player into a random real group (facing 3 of its teams), then draw
+ *  five knockout opponents, biased stronger in later rounds. */
+export function setupTournament(): TournamentSetup {
+  const group = pick(GROUPS)
+  const foes = shuffle(group.teams)
+    .slice(0, 3)
+    .map((n) => teamByName(n))
+    .filter((t): t is NationalTeam => Boolean(t))
+
+  const used = new Set(foes.map((f) => f.name))
+  const knockout = ROUNDS.slice(3).map((r) => {
+    const pool = TEAMS.filter((t) => t.rating >= r.minOppRating && !used.has(t.name))
     const choice = pool.length ? pick(pool) : pick(TEAMS.filter((t) => !used.has(t.name)))
     used.add(choice.name)
     return choice
   })
+
+  return { groupName: group.name, opponents: [...foes, ...knockout] }
 }
 
 // ── Match simulation ────────────────────────────────────────────────
@@ -240,9 +254,89 @@ export function simulateMatch(
   return { ...base, outcome: 'draw', pens, advanced: iWin }
 }
 
+// ── Group stage ─────────────────────────────────────────────────────
+/** Quick rating-only result for two opponent nations (for the group table). */
+function teamGoals(rA: number, rB: number): [number, number] {
+  const xa = clamp(1.35 + (rA - rB) * 0.05, 0.25, 5)
+  const xb = clamp(1.35 - (rA - rB) * 0.05, 0.25, 5)
+  return [poisson(xa), poisson(xb)]
+}
+
+interface Standing {
+  key: string
+  pts: number
+  gf: number
+  ga: number
+  gd: number
+}
+
+export type QualifiedAs = 'group winners' | 'runners-up' | 'best third'
+
+export interface GroupOutcome {
+  standing: number // 1-4
+  qualified: boolean
+  qualifiedAs: QualifiedAs | null
+}
+
+const addResult = (s: Standing, gf: number, ga: number) => {
+  s.gf += gf
+  s.ga += ga
+  if (gf > ga) s.pts += 3
+  else if (gf === ga) s.pts += 1
+}
+
+/** Build the 4-team table from the player's 3 matches plus the 3 games among
+ *  the other group teams, then decide top-2 / best-third qualification. */
+function resolveGroup(myMatches: MatchResult[], foes: NationalTeam[]): GroupOutcome {
+  const me: Standing = { key: 'me', pts: 0, gf: 0, ga: 0, gd: 0 }
+  const opp: Standing[] = foes.map((_, i) => ({ key: `o${i}`, pts: 0, gf: 0, ga: 0, gd: 0 }))
+
+  myMatches.forEach((m, i) => {
+    addResult(me, m.myGoals, m.oppGoals)
+    addResult(opp[i], m.oppGoals, m.myGoals)
+  })
+  for (const [a, b] of [[0, 1], [0, 2], [1, 2]]) {
+    const [ga, gb] = teamGoals(foes[a].rating, foes[b].rating)
+    addResult(opp[a], ga, gb)
+    addResult(opp[b], gb, ga)
+  }
+
+  const table = [me, ...opp]
+  table.forEach((s) => (s.gd = s.gf - s.ga))
+  table.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
+  const standing = table.findIndex((s) => s.key === 'me') + 1
+
+  if (standing <= 2) {
+    return { standing, qualified: true, qualifiedAs: standing === 1 ? 'group winners' : 'runners-up' }
+  }
+  if (standing === 4) return { standing, qualified: false, qualifiedAs: null }
+
+  // 3rd place: advance only if among the 8 best thirds. Model the other 11
+  // groups' third-placed teams and count how many finish above us.
+  const myThird = table[2]
+  let better = 0
+  for (let i = 0; i < 11; i++) {
+    const t = randomThird()
+    if (t.pts > myThird.pts || (t.pts === myThird.pts && t.gd > myThird.gd)) better++
+  }
+  const qualified = better < 8
+  return { standing: 3, qualified, qualifiedAs: qualified ? 'best third' : null }
+}
+
+/** A plausible third-placed team's points + goal difference. */
+function randomThird(): { pts: number; gd: number } {
+  const r = Math.random()
+  const pts = r < 0.05 ? 0 : r < 0.23 ? 1 : r < 0.53 ? 2 : r < 0.83 ? 3 : 4
+  const gd = Math.floor(Math.random() * 7) - 4 // -4..2
+  return { pts, gd }
+}
+
 // ── Run a full tournament ───────────────────────────────────────────
 export interface TournamentResult {
   results: MatchResult[]
+  groupName: string
+  groupStanding: number
+  qualifiedAs: QualifiedAs | null
   champion: boolean
   perfect: boolean // won every match in normal time, no draws/pens
   eliminatedAt?: string
@@ -251,28 +345,46 @@ export interface TournamentResult {
 export function buildTournament(
   strength: Strength,
   formation: Formation,
-  opponents: NationalTeam[],
+  setup: TournamentSetup,
 ): TournamentResult {
+  const { opponents, groupName } = setup
   const results: MatchResult[] = []
-  let champion = false
   let perfect = true
-  let eliminatedAt: string | undefined
 
-  for (let i = 0; i < ROUNDS.length; i++) {
-    const r = ROUNDS[i]
-    const res = simulateMatch(strength, formation, r, opponents[i])
-    results.push(res)
+  // ── Group stage: 3 games, then collective top-2 / best-third qualification
+  const groupMatches = [0, 1, 2].map((i) =>
+    simulateMatch(strength, formation, ROUNDS[i], opponents[i]),
+  )
+  const group = resolveGroup(groupMatches, opponents.slice(0, 3))
+  // a group result never eliminates on its own; only the final standing does
+  groupMatches.forEach((m, i) => {
+    m.advanced = i < 2 ? true : group.qualified
+    if (m.outcome !== 'win') perfect = false
+    results.push(m)
+  })
 
-    if (res.outcome !== 'win') perfect = false
-
-    if (!res.advanced) {
-      eliminatedAt = r.name
-      break
-    }
-    if (i === ROUNDS.length - 1) champion = true
+  const common = {
+    results,
+    groupName,
+    groupStanding: group.standing,
+    qualifiedAs: group.qualifiedAs,
   }
 
-  return { results, champion, perfect, eliminatedAt }
+  if (!group.qualified) {
+    return { ...common, champion: false, perfect: false, eliminatedAt: 'Group Stage' }
+  }
+
+  // ── Knockouts: 5 rounds, any loss (incl. on penalties) ends the run
+  for (let i = 3; i < ROUNDS.length; i++) {
+    const res = simulateMatch(strength, formation, ROUNDS[i], opponents[i])
+    results.push(res)
+    if (res.outcome !== 'win') perfect = false
+    if (!res.advanced) {
+      return { ...common, champion: false, perfect: false, eliminatedAt: ROUNDS[i].name }
+    }
+  }
+
+  return { ...common, champion: true, perfect }
 }
 
 export { PLAYERS, type Player, type Position, type NationalTeam }

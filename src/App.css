@@ -509,6 +509,21 @@
 }
 
 /* ── Tournament ── */
+.qual-banner {
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(47, 208, 122, 0.18), rgba(47, 208, 122, 0.06));
+  border: 1px solid rgba(47, 208, 122, 0.4);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  animation: pop 0.35s ease both;
+}
+.qual-banner strong {
+  color: var(--green);
+  text-transform: capitalize;
+}
 .match-list {
   display: flex;
   flex-direction: column;

@@ -3,13 +3,13 @@ import {
   FORMATIONS,
   ROUNDS,
   draftChoices,
-  drawOpponents,
+  setupTournament,
   squadStrength,
   buildTournament,
   type Player,
   type Formation,
 } from './game/engine'
-import type { MatchResult, TournamentResult } from './game/engine'
+import type { MatchResult, TournamentResult, QualifiedAs } from './game/engine'
 import type { NationalTeam } from './data/teams'
 import './App.css'
 
@@ -26,6 +26,7 @@ export default function App() {
 
   // tournament state
   const [opponents, setOpponents] = useState<NationalTeam[]>([])
+  const [groupName, setGroupName] = useState('')
   const [tournament, setTournament] = useState<TournamentResult | null>(null)
   const [revealed, setRevealed] = useState(0)
 
@@ -66,9 +67,10 @@ export default function App() {
   }
 
   function beginTournament() {
-    const opps = drawOpponents()
-    setOpponents(opps)
-    setTournament(buildTournament(strength, formation, opps))
+    const setup = setupTournament()
+    setOpponents(setup.opponents)
+    setGroupName(setup.groupName)
+    setTournament(buildTournament(strength, formation, setup))
     setRevealed(0)
     setScreen('tournament')
   }
@@ -121,6 +123,9 @@ export default function App() {
           results={tournament.results}
           revealed={revealed}
           opponents={opponents}
+          groupName={groupName}
+          qualifiedAs={tournament.qualifiedAs}
+          groupStanding={tournament.groupStanding}
           onReveal={revealNext}
         />
       )}
@@ -128,6 +133,7 @@ export default function App() {
         <Result
           result={tournament}
           formation={formation}
+          groupName={groupName}
           squad={picked}
           rating={strength.overall}
           onAgain={playAgain}
@@ -341,18 +347,28 @@ function Tournament(props: {
   results: MatchResult[]
   revealed: number
   opponents: NationalTeam[]
+  groupName: string
+  qualifiedAs: QualifiedAs | null
+  groupStanding: number
   onReveal: () => void
 }) {
-  const { results, revealed, opponents, onReveal } = props
+  const { results, revealed, opponents, groupName, qualifiedAs, onReveal } = props
   const done = revealed >= results.length
   const lastEliminated = revealed > 0 && !results[revealed - 1].advanced
   const canReveal = !done && !lastEliminated
   const nextRound = canReveal ? ROUNDS[revealed].name : null
   const nextOpp = canReveal ? opponents[revealed] : null
+  const groupDone = revealed >= 3
+  const phaseLabel = revealed < 3 ? `${groupName} · group stage` : 'The road to the final'
 
   return (
     <div className="screen tournament">
-      <div className="kicker">The road to the final</div>
+      <div className="kicker">{phaseLabel}</div>
+      {groupDone && qualifiedAs && (
+        <div className="qual-banner">
+          ✓ Through to the knockouts as <strong>{qualifiedAs}</strong>
+        </div>
+      )}
       <div className="match-list">
         {ROUNDS.map((round, i) => {
           const result = results[i]
@@ -405,6 +421,7 @@ function tagFor(r: MatchResult): string {
   if (r.pens) return 'PENS ✓'
   if (r.outcome === 'win') return 'WIN'
   if (r.outcome === 'draw') return 'DRAW'
+  if (r.outcome === 'loss') return 'LOSS'
   return ''
 }
 
@@ -412,12 +429,14 @@ function tagFor(r: MatchResult): string {
 function Result({
   result,
   formation,
+  groupName,
   squad,
   rating,
   onAgain,
 }: {
   result: TournamentResult
   formation: Formation
+  groupName: string
   squad: Player[]
   rating: number
   onAgain: () => void
@@ -429,11 +448,14 @@ function Result({
       ? 'CHAMPIONS!'
       : 'ELIMINATED'
   const emoji = result.perfect ? '🏆✨' : result.champion ? '🏆' : '💔'
+  const outInGroup = result.eliminatedAt === 'Group Stage'
   const sub = result.perfect
     ? 'Eight games, eight wins. Football immortality.'
     : result.champion
       ? 'You lifted the trophy — but not unbeaten in normal time.'
-      : `Knocked out in the ${result.eliminatedAt}. ${wins} ${wins === 1 ? 'win' : 'wins'} on the run.`
+      : outInGroup
+        ? `Out in the group stage — finished ${ordinal(result.groupStanding)} in ${groupName}.`
+        : `Knocked out in the ${result.eliminatedAt}. ${wins} ${wins === 1 ? 'win' : 'wins'} on the run.`
 
   const [copied, setCopied] = useState(false)
   function share() {
@@ -490,6 +512,10 @@ function tier(r: number): string {
   if (r >= 84) return 'gold'
   if (r >= 80) return 'silver'
   return 'bronze'
+}
+
+function ordinal(n: number): string {
+  return n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`
 }
 
 function shortName(name: string): string {
