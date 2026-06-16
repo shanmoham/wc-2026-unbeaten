@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ROUNDS,
   SQUAD_SIZE,
@@ -9,7 +9,6 @@ import {
   setupTournament,
   squadStrength,
   buildTournament,
-  simulateWorldCup,
   predictRun,
   type Player,
   type Formation,
@@ -29,6 +28,22 @@ import './App.css'
 
 type Screen = 'title' | 'formation' | 'draft' | 'review' | 'tournament' | 'result'
 
+const STORAGE_KEY = 'road-to-glory-2026/save'
+const STORAGE_VERSION = 3
+
+interface PersistedGame {
+  version: number
+  screen: Screen
+  formationId: string
+  squad: Player[]
+  draw: DraftDraw | null
+  opponents: NationalTeam[]
+  groupName: string
+  tournament: TournamentResult | null
+  worldCup: WorldCupResult | null
+  revealed: number
+}
+
 const POS_LABELS: { pos: Position; label: string }[] = [
   { pos: 'GK', label: 'Goalkeepers' },
   { pos: 'DEF', label: 'Defenders' },
@@ -36,20 +51,39 @@ const POS_LABELS: { pos: Position; label: string }[] = [
   { pos: 'FWD', label: 'Forwards' },
 ]
 
+function loadPersistedGame(): PersistedGame | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<PersistedGame>
+    if (parsed.version !== STORAGE_VERSION || typeof parsed.formationId !== 'string') {
+      return null
+    }
+    return parsed as PersistedGame
+  } catch {
+    return null
+  }
+}
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('title')
-  const [formation, setFormation] = useState<Formation>(FORMATIONS[0])
+  const restored = useMemo(() => loadPersistedGame(), [])
+  const restoredFormation =
+    FORMATIONS.find((candidate) => candidate.id === restored?.formationId) ?? FORMATIONS[0]
+
+  const [screen, setScreen] = useState<Screen>(restored?.screen ?? 'title')
+  const [formation, setFormation] = useState<Formation>(restoredFormation)
 
   // draft state — squad is the list of players picked so far
-  const [squad, setSquad] = useState<Player[]>([])
-  const [draw, setDraw] = useState<DraftDraw | null>(null)
+  const [squad, setSquad] = useState<Player[]>(restored?.squad ?? [])
+  const [draw, setDraw] = useState<DraftDraw | null>(restored?.draw ?? null)
 
   // tournament state
-  const [opponents, setOpponents] = useState<NationalTeam[]>([])
-  const [groupName, setGroupName] = useState('')
-  const [tournament, setTournament] = useState<TournamentResult | null>(null)
-  const [worldCup, setWorldCup] = useState<WorldCupResult | null>(null)
-  const [revealed, setRevealed] = useState(0)
+  const [opponents, setOpponents] = useState<NationalTeam[]>(restored?.opponents ?? [])
+  const [groupName, setGroupName] = useState(restored?.groupName ?? '')
+  const [tournament, setTournament] = useState<TournamentResult | null>(restored?.tournament ?? null)
+  const [worldCup, setWorldCup] = useState<WorldCupResult | null>(restored?.worldCup ?? null)
+  const [revealed, setRevealed] = useState(restored?.revealed ?? 0)
 
   const takenIds = useMemo(() => new Set(squad.map((p) => p.id)), [squad])
   const strength = useMemo(() => squadStrength(squad), [squad])
@@ -59,6 +93,42 @@ export default function App() {
     () => (squad.length === SQUAD_SIZE ? predictRun(strength, formation, squad) : null),
     [squad, formation, strength],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const shouldClear =
+      screen === 'title' &&
+      squad.length === 0 &&
+      draw === null &&
+      opponents.length === 0 &&
+      groupName === '' &&
+      tournament === null &&
+      worldCup === null &&
+      revealed === 0
+
+    try {
+      if (shouldClear) {
+        window.localStorage.removeItem(STORAGE_KEY)
+        return
+      }
+
+      const snapshot: PersistedGame = {
+        version: STORAGE_VERSION,
+        screen,
+        formationId: formation.id,
+        squad,
+        draw,
+        opponents,
+        groupName,
+        tournament,
+        worldCup,
+        revealed,
+      }
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+    } catch {
+      // Ignore storage failures so the game still works in private mode or tight quotas.
+    }
+  }, [screen, formation, squad, draw, opponents, groupName, tournament, worldCup, revealed])
 
   // ── flow helpers ─────────────────────────────────────────────
   function chooseFormation(f: Formation) {
@@ -85,10 +155,11 @@ export default function App() {
 
   function beginTournament() {
     const setup = setupTournament()
-    setOpponents(setup.opponents)
     setGroupName(setup.groupName)
-    setTournament(buildTournament(strength, formation, squad, setup))
-    setWorldCup(simulateWorldCup())
+    const built = buildTournament(strength, formation, squad, setup)
+    setOpponents(built.results.map((match) => match.opponent))
+    setTournament(built)
+    setWorldCup(built.worldCup)
     setRevealed(0)
     setScreen('tournament')
   }
